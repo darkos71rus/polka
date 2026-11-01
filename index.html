@@ -1,0 +1,2662 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Полка — управление остатками сети</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+*{margin:0;padding:0}
+:root{
+  --bg:#0a0e1a; --card:#151b2d; --card2:#1c2438; --border:#242c44;
+  --text:#e5e9f0; --muted:#8892a6; --accent:#3b82f6; --accent2:#2563eb;
+  --ok:#22c55e; --low:#eab308; --critical:#ef4444; --over:#a855f7; --nodata:#6b7280;
+  --radius:12px;
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-size:14px; color:var(--text); min-height:100vh; background:
+    radial-gradient(1000px 500px at 15% -10%, rgba(59,130,246,.10), transparent 60%),
+    radial-gradient(800px 400px at 100% 0%, rgba(168,85,247,.07), transparent 60%), var(--bg);
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select,textarea{font:inherit;color:var(--text)}
+a{color:var(--accent);text-decoration:none}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#2b3452;border-radius:99px;border:2px solid transparent;background-clip:padding-box}
+
+/* ── общие ── */
+.wrap{max-width:1280px;margin:0 auto;padding:16px 20px 40px}
+.topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:14px;padding:11px 20px;background:rgba(21,27,45,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:17px;white-space:nowrap}
+.logo em{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--accent);padding:2px 6px;border-radius:4px}
+.spacer{flex:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:9px;border:1px solid var(--border);background:var(--card);font-size:13px;font-weight:600;transition:.15s}
+.btn:hover{border-color:var(--accent);background:var(--card2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent2)}
+.btn.ghost{background:transparent}
+.btn.sm{padding:5px 10px;font-size:12px;border-radius:7px}
+.btn.danger{border-color:rgba(239,68,68,.5);color:#fca5a5}
+.btn:disabled{opacity:.5;cursor:default}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.tiny{font-size:11px}
+.row{display:flex;align-items:center;gap:10px}
+.wrapflex{display:flex;flex-wrap:wrap;gap:10px}
+.grid-kpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.kpi{background:linear-gradient(135deg,var(--card),var(--card2));border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+.kpi.ok::before{background:var(--ok)} .kpi.warn::before{background:var(--low)}
+.kpi.bad::before{background:var(--critical)} .kpi.over::before{background:var(--over)}
+.kpi b{display:block;font-size:22px;line-height:1.15}
+.kpi span{font-size:11.5px;color:var(--muted)}
+.kpi i{display:block;font-size:10.5px;color:var(--muted);opacity:.7;margin-top:4px;font-style:normal}
+
+/* ── табы ── */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:14px 0}
+.tabs button{padding:7px 13px;border-radius:9px;border:1px solid transparent;color:var(--muted);font-size:13px;font-weight:600}
+.tabs button:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.tabs button.on{background:var(--accent);color:#fff}
+
+/* ── полки ── */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px}
+.shelf{position:relative;display:flex;flex-direction:column;gap:5px;min-height:112px;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--card);text-align:left;transition:.15s}
+.shelf:hover{transform:translateY(-1px);border-color:#39456e}
+.shelf.ok{background:linear-gradient(180deg,rgba(34,197,94,.11),rgba(34,197,94,.02));border-color:rgba(34,197,94,.4)}
+.shelf.low{background:linear-gradient(180deg,rgba(234,179,8,.11),rgba(234,179,8,.02));border-color:rgba(234,179,8,.4)}
+.shelf.critical{background:linear-gradient(180deg,rgba(239,68,68,.15),rgba(239,68,68,.03));border-color:rgba(239,68,68,.5)}
+.shelf.over{background:linear-gradient(180deg,rgba(168,85,247,.12),rgba(168,85,247,.02));border-color:rgba(168,85,247,.45)}
+.shelf.nodata{background:rgba(107,114,128,.07);border-color:rgba(107,114,128,.4)}
+.shelf .st{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600}
+.shelf .st .ico{font-size:12px}
+.shelf .sec{font-size:10.5px;color:var(--muted)}
+.shelf .bar{height:4px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:auto}
+.shelf .bar i{display:block;height:100%;border-radius:99px;background:var(--muted)}
+.shelf.ok .bar i{background:var(--ok)} .shelf.low .bar i{background:var(--low)}
+.shelf.critical .bar i{background:var(--critical)} .shelf.over .bar i{background:var(--over)}
+.shelf .foot{display:flex;justify-content:space-between;font-size:10.5px}
+.shelf .foot .p{color:var(--muted)}
+.shelf .money{position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;color:#e9d5ff;background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.45);border-radius:6px;padding:1px 6px}
+.shelf .dot{width:6px;height:6px;border-radius:50%;background:var(--muted)}
+.shelf.ok .dot{background:var(--ok)} .shelf.low .dot{background:var(--low)}
+.shelf.critical .dot{background:var(--critical);animation:blink 1.8s infinite}
+.shelf.over .dot{background:var(--over)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── магазины ── */
+.stores{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.store-card{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:var(--radius);border:1px solid var(--border);background:linear-gradient(180deg,var(--card),var(--card2));text-align:left;transition:.15s}
+.store-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.store-card .nm{font-size:15px;font-weight:700}
+.store-card .ad{font-size:11px;color:var(--muted)}
+.store-card .mini{display:flex;gap:3px;flex-wrap:wrap}
+.store-card .mini i{width:9px;height:9px;border-radius:2px;display:block;background:var(--muted)}
+.store-card .mini i.ok{background:var(--ok)} .store-card .mini i.low{background:var(--low)}
+.store-card .mini i.critical{background:var(--critical)} .store-card .mini i.over{background:var(--over)}
+.store-card .mini i.nodata{background:var(--nodata)}
+
+/* ── таблица ── */
+table.t{width:100%;border-collapse:collapse;font-size:12px}
+table.t th{text-align:left;font-weight:600;color:var(--muted);padding:7px 8px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+table.t td{padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.05)}
+table.t tr:hover td{background:rgba(255,255,255,.02)}
+.pill{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px}
+.pill.ok{background:rgba(34,197,94,.16);color:#86efac}
+.pill.low{background:rgba(234,179,8,.15);color:#fde68a}
+.pill.critical{background:rgba(239,68,68,.16);color:#fca5a5}
+.pill.over{background:rgba(168,85,247,.16);color:#e9d5ff}
+.pill.nodata{background:rgba(107,114,128,.2);color:#d1d5db}
+
+/* ── вход ── */
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-card{width:100%;max-width:520px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px}
+.login-card h1{font-size:20px;margin-bottom:4px}
+.role{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
+.role button{padding:16px;border-radius:12px;border:1px solid var(--border);text-align:left;transition:.15s}
+.role button:hover{border-color:var(--accent);background:var(--card2)}
+.role button b{display:block;font-size:14px;margin-bottom:3px}
+.role button span{font-size:11px;color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+.field label{font-size:11.5px;color:var(--muted)}
+.field input,.field select,.field textarea{padding:9px 11px;border-radius:8px;background:var(--bg);border:1px solid var(--border);font-size:13px}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent)}
+
+/* ── продавец ── */
+.seller-frame{max-width:520px;margin:0 auto;padding:14px 14px 40px}
+.shopline{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:10px}
+.progress{height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin:8px 0 12px}
+.progress i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .3s}
+.shelf-row{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);text-align:left;margin-bottom:7px}
+.shelf-row:hover{border-color:var(--accent)}
+.shelf-row .info{flex:1;min-width:0}
+.shelf-row .nm{font-size:13px;font-weight:600}
+.shelf-row .sub{font-size:11px;color:var(--muted)}
+.shelf-row .go{color:var(--muted);font-size:16px}
+.badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;white-space:nowrap}
+.badge.done{background:rgba(34,197,94,.16);color:#86efac}
+.badge.wait{background:rgba(234,179,8,.15);color:#fde68a}
+
+/* аудит полки */
+.audit-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.audit-item .an{flex:1;min-width:0;font-size:13px}
+.audit-item .an small{display:block;color:var(--muted);font-size:10.5px}
+.stepper{display:flex;align-items:center;gap:4px}
+.stepper button{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--card2);font-size:15px;font-weight:700}
+.stepper button:hover{border-color:var(--accent)}
+.stepper input{width:58px;height:30px;text-align:center;border-radius:8px;border:1px solid var(--border);background:var(--bg);font-size:13px;font-weight:600}
+.stepper input:focus{outline:none;border-color:var(--accent)}
+.photo-box{border:1px dashed var(--border);border-radius:10px;padding:14px;text-align:center;margin:12px 0;cursor:pointer;transition:.15s}
+.photo-box:hover{border-color:var(--accent)}
+.photo-box img{max-width:100%;max-height:180px;border-radius:8px;display:block;margin:0 auto 8px}
+.photo-box span{font-size:11.5px;color:var(--muted)}
+.fab{position:sticky;bottom:14px;display:flex;gap:8px;margin-top:14px}
+
+/* ── запросы ── */
+.req{display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.req .txt{flex:1;min-width:0;font-size:13px}
+.req .meta{font-size:10.5px;color:var(--muted);margin-top:2px}
+.like{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:38px;padding:4px 6px;border-radius:8px;border:1px solid var(--border);background:var(--card2);font-size:11px}
+.like:hover{border-color:var(--accent)}
+.like.on{border-color:rgba(59,130,246,.6);background:rgba(59,130,246,.14);color:#bfdbfe}
+.like b{font-size:12px}
+
+/* ── модалка/детали ── */
+.detail-grid{display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
+.history{display:flex;flex-direction:column;gap:8px}
+.hrow{display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.dbar{height:4px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden}
+.dbar i{display:block;height:100%;border-radius:99px}
+.dbar i.ok{background:var(--ok)} .dbar i.low{background:var(--low)}
+.dbar i.critical{background:var(--critical)} .dbar i.over{background:var(--over)}
+
+/* ── график ── */
+.chart{width:100%;height:180px}
+.chart .axis{stroke:#2b3452;stroke-width:1}
+.chart .line{fill:none;stroke:var(--accent);stroke-width:2}
+.chart .area{fill:rgba(59,130,246,.12)}
+.chart text{fill:#8892a6;font-size:9px}
+
+/* ── матрица, тренды, фото ── */
+.matrix td{text-align:center;white-space:nowrap}
+.matrix td:first-child{text-align:left;white-space:normal;min-width:170px}
+.heat{display:inline-block;min-width:46px;padding:2px 7px;border-radius:6px;font-weight:600;font-size:11.5px}
+.trend-up{color:#86efac}
+.trend-down{color:#fca5a5}
+.photo-thumb{width:46px;height:46px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
+.legend-row{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+.legend-row i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px}
+
+/* ── визуализация полки ── */
+.visual-card{margin:12px 0;border:1px solid var(--border);border-radius:12px;background:linear-gradient(180deg,#0e1424,#0a0f1c);padding:10px}
+.visual-head{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.shelf-svg{width:100%;max-width:560px;height:auto;display:block;margin:0 auto}
+.visual-legend{display:flex;gap:10px;flex-wrap:wrap;font-size:10.5px;color:var(--muted);margin-top:6px}
+.visual-legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}
+.visual-legend i.empty{border:1px dashed #ef4444;background:transparent}
+
+/* ── адаптив ── */
+@media (max-width:900px){
+  .grid-kpi{grid-template-columns:1fr 1fr}
+  .stores{grid-template-columns:1fr}
+  .detail-grid{grid-template-columns:1fr}
+}
+@media (max-width:560px){
+  .wrap{padding:12px 12px 30px}
+  .topbar{padding:9px 12px;gap:8px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+  .role{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="app"><div style="padding:48px;font-family:-apple-system,Segoe UI,sans-serif;color:#8892a6;font-size:14px;line-height:1.6">Загрузка приложения…<br><span style="font-size:12px;opacity:.7">Если этот текст остался — JavaScript не выполнился: откройте файл в браузере (двойной клик), а не в предпросмотре.</span></div></div>
+<script>
+console.log('Полка: скрипт стартовал');
+window.addEventListener('error', function(e){
+  var el = document.getElementById('app');
+  if (el && !el.innerHTML.trim()){
+    el.innerHTML = '<div style="padding:40px;color:#fca5a5;font-family:monospace;font-size:13px">Ошибка загрузки: ' + (e.message || 'unknown') + '</div>';
+  }
+});
+/* ═══════════════════════════════════════════════
+   ДАННЫЕ
+   ═══════════════════════════════════════════════ */
+const ZONES = ['Молочка','Хлеб','Напитки','Снеки','Химия','Заморозка','Алкоголь'];
+
+const CATS = {
+  'Молочка':   { pool:'dairy',    ico:'❄️' },
+  'Хлеб':      { pool:'bread',    ico:'▤' },
+  'Напитки':   { pool:'drinks',   ico:'▤' },
+  'Снеки':     { pool:'snacks',   ico:'▤' },
+  'Химия':     { pool:'household',ico:'▤' },
+  'Заморозка': { pool:'frozen',   ico:'❄️' },
+  'Алкоголь':  { pool:'alcohol',  ico:'🍷' }
+};
+
+const POOLS = {
+  dairy:   ['Молоко 3,2%','Кефир 1%','Творог 5%','Сметана 20%','Йогурт натуральный','Сыр Российский'],
+  bread:   ['Батон нарезной','Хлеб Бородинский','Багет','Лаваш','Круассан'],
+  drinks:  ['Кола 1,5 л','Вода 0,5 л','Сок апельсиновый','Энергетик','Лимонад'],
+  snacks:  ['Чипсы','Сухарики','Шоколад молочный','Печенье','Орехи'],
+  household:['Порошок стиральный','Гель для стирки','Мыло','Шампунь','Паста зубная'],
+  frozen:  ['Пельмени','Мороженое','Блинчики','Наггетсы','Пицца'],
+  alcohol: ['Пиво светлое','Вино красное','Вино белое','Виски','Водка']
+};
+
+const STORE_DEFS = [
+  { id:'s1', name:'Центральный', address:'ул. Ленина, 12', health:'mixed' },
+  { id:'s2', name:'Северный',    address:'пр. Мира, 45',   health:'bad'   },
+  { id:'s3', name:'Молодёжный',  address:'ул. Гагарина, 8',health:'good'  }
+];
+
+const SELLER_DEFS = [
+  { id:'u1', name:'Анна',   storeId:'s1' },
+  { id:'u2', name:'Игорь',  storeId:'s1' },
+  { id:'u3', name:'Марина', storeId:'s2' },
+  { id:'u4', name:'Олег',   storeId:'s2' },
+  { id:'u5', name:'Даша',   storeId:'s3' }
+];
+
+/* ── утилиты ── */
+function rnd32(seed){
+  let a = seed | 0;
+  return function(){
+    a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rand = rnd32(20261101);
+function pick(arr){ return arr[Math.floor(rand() * arr.length)]; }
+function uid(p){ return p + '-' + Math.random().toString(36).slice(2, 9); }
+function fmtMoney(v){
+  if (!v) return '0 ₽';
+  if (v >= 1e6) return (v / 1e6).toFixed(1).replace('.', ',') + 'M ₽';
+  if (v >= 1000) return Math.round(v / 1000) + 'K ₽';
+  return Math.round(v) + ' ₽';
+}
+function fmtAgo(ts){
+  const h = (Date.now() - ts) / 3600000;
+  if (h < 1) return 'только что';
+  if (h < 24) return Math.round(h) + ' ч назад';
+  return Math.round(h / 24) + ' дн назад';
+}
+function fmtDate(ts){
+  return new Date(ts).toLocaleDateString('ru-RU', { day:'2-digit', month:'2-digit' });
+}
+function esc(s){
+  return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+}
+const DAY = 86400000;
+
+/* ═══════════════════════════════════════════════
+   ГЕНЕРАЦИЯ ДЕМО-БАЗЫ
+   ═══════════════════════════════════════════════ */
+function buildDB(){
+  const db = { stores:[], sellers:[], skus:[], shelves:[], audits:[], requests:[] };
+  const now = Date.now();
+
+  STORE_DEFS.forEach(s => db.stores.push({ ...s }));
+  SELLER_DEFS.forEach(u => db.sellers.push({ ...u }));
+
+  /* skus */
+  const skuByPool = {};
+  let price = 80;
+  Object.entries(POOLS).forEach(([pool, names]) => {
+    skuByPool[pool] = [];
+    names.forEach((name, i) => {
+      const id = pool + '-' + (i + 1);
+      const p = Math.round((60 + rand() * 900) / 10) * 10;
+      db.skus.push({ id, name, pool, price: p });
+      skuByPool[pool].push(id);
+    });
+  });
+
+  const storeHealth = { s1: 1.0, s2: 0.72, s3: 1.12 };
+
+  /* shelves */
+  db.stores.forEach(store => {
+    const zones = store.id === 's2' ? ZONES.filter(z => z !== 'Алкоголь') : ZONES;
+    let n = 0;
+    zones.forEach(zone => {
+      for (let k = 0; k < 2; k++){
+        n++;
+        const pool = CATS[zone].pool;
+        const ids = skuByPool[pool].slice();
+        const take = 3 + Math.floor(rand() * 3);
+        const picked = ids.sort(() => rand() - 0.5).slice(0, take);
+        const items = picked.map(skuId => ({ skuId, target: 8 + Math.floor(rand() * 18) }));
+        db.shelves.push({
+          id: store.id + '-' + n,
+          storeId: store.id,
+          zone,
+          section: n,
+          type: CATS[zone].ico === '❄️' ? 'fridge' : CATS[zone].ico === '🍷' ? 'showcase' : 'rack',
+          items
+        });
+      }
+    });
+  });
+
+  /* история: 14 дней */
+  const hFactor = { s1: 1.0, s2: 0.62, s3: 1.15 };
+  const fillBase = { s1: 0.75, s2: 0.42, s3: 0.92 };
+
+  db.shelves.forEach(shelf => {
+    const store = shelf.storeId;
+    const hf = hFactor[store] || 1;
+    const state = {};
+    shelf.items.forEach(it => {
+      state[it.skuId] = Math.round(it.target * (fillBase[store] + rand() * 0.25));
+    });
+
+    for (let d = 0; d < 14; d++){
+      const dayTs = now - (13 - d) * DAY;
+      shelf.items.forEach(it => {
+        const demand = it.target * (0.08 + rand() * 0.08) * hf;
+        state[it.skuId] = Math.max(0, state[it.skuId] - Math.round(demand));
+        const restockChance = store === 's2' ? 0.15 : store === 's1' ? 0.35 : 0.4;
+        if (rand() < restockChance){
+          state[it.skuId] = Math.min(Math.round(it.target * 1.9), state[it.skuId] + Math.round(it.target * (0.25 + rand() * 0.2)));
+        }
+      });
+
+      const isLast = d === 13;
+      const skip = !isLast && rand() > 0.45;
+      if (skip) continue;
+
+      const seller = db.sellers.filter(u => u.storeId === store)[0];
+      const ts = dayTs + (9 + Math.floor(rand() * 9)) * 3600000;
+      db.audits.push({
+        id: shelf.id + '-' + d,
+        shelfId: shelf.id,
+        storeId: store,
+        sellerId: seller.id,
+        ts: Math.min(ts, now - 60000 * (10 + Math.floor(rand() * 200))),
+        items: shelf.items.map(it => ({ skuId: it.skuId, stock: state[it.skuId] })),
+        photo: null
+      });
+    }
+  });
+
+  /* пара «просроченных» полок без данных */
+  db.audits = db.audits.filter(a => {
+    if (a.storeId === 's1' && a.shelfId === 's1-4') return a.ts < now - 45 * 3600000;
+    return true;
+  });
+
+  /* запросы покупателей */
+  const reqTexts = [
+    'Гречка в пакетах — спрашивают каждый день, нет на полке',
+    'Корм для кошек, маленькие пакеты',
+    'Влажные салфетки детские',
+    'Разрыхлитель теста',
+    'Молоко безлактозное',
+    'Квас в бутылке 1,5 л',
+    'Соль морская крупная',
+    'Батарейки АА'
+  ];
+  const stores = db.stores.map(s => s.id);
+  reqTexts.forEach((text, i) => {
+    const sid = stores[i % stores.length];
+    const seller = db.sellers.filter(u => u.storeId === sid)[0];
+    const likes = [];
+    for (let k = 0; k < 6; k++){
+      const u = db.sellers[Math.floor(rand() * db.sellers.length)];
+      if (u.storeId === sid && !likes.includes(u.id)) likes.push(u.id);
+    }
+    db.requests.push({
+      id: 'r' + (i + 1),
+      storeId: sid,
+      sellerId: seller.id,
+      text,
+      skuId: null,
+      ts: now - (i * 0.7 + rand() * 0.5) * DAY,
+      likes
+    });
+  });
+
+  return db;
+}
+
+/* ═══════════════════════════════════════════════
+   ХРАНИЛИЩЕ
+   ═══════════════════════════════════════════════ */
+const DB_KEY = 'shelf_db_v3';
+const SESSION_KEY = 'shelf_session_v3';
+
+function loadDB(){
+  try {
+    const raw = localStorage.getItem(DB_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e){}
+  const db = buildDB();
+  saveDB(db);
+  return db;
+}
+function saveDB(db){
+  try { localStorage.setItem(DB_KEY, JSON.stringify(db || DB)); } catch (e){}
+}
+function resetDB(){
+  DB = buildDB();
+  saveDB(DB);
+}
+
+let DB = loadDB();
+let SESSION = null;
+try { SESSION = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (e){ SESSION = null; }
+
+/* ═══════════════════════════════════════════════
+   АНАЛИТИКА (чистые функции)
+   ═══════════════════════════════════════════════ */
+function shelfAudits(shelfId){
+  return DB.audits.filter(a => a.shelfId === shelfId).sort((a, b) => a.ts - b.ts);
+}
+function lastAudit(shelfId){
+  const list = shelfAudits(shelfId);
+  return list.length ? list[list.length - 1] : null;
+}
+function stockOf(audit){
+  const m = {};
+  (audit ? audit.items : []).forEach(it => { m[it.skuId] = it.stock; });
+  return m;
+}
+function sku(id){ return DB.skus.find(s => s.id === id); }
+function shelf(id){ return DB.shelves.find(s => s.id === id); }
+function store(id){ return DB.stores.find(s => s.id === id); }
+function seller(id){ return DB.sellers.find(s => s.id === id); }
+
+/* расход по полке за N дней: сумма снижений между аудитами */
+function shelfConsumption(shelfId, days, skuId){
+  const list = shelfAudits(shelfId).filter(a => a.ts > Date.now() - days * DAY);
+  if (list.length < 2) return 0;
+  let sum = 0;
+  for (let i = 1; i < list.length; i++){
+    const prev = stockOf(list[i - 1]);
+    const cur = stockOf(list[i]);
+    for (const key of Object.keys(cur)){
+      if (skuId && key !== skuId) continue;
+      const delta = (prev[key] || 0) - cur[key];
+      if (delta > 0) sum += delta;
+    }
+  }
+  return sum;
+}
+
+/* расход по магазину на SKU за N дней (по всем полкам) */
+function storeSkuConsumption(storeId, skuId, days){
+  const shelves = DB.shelves.filter(s => s.storeId === storeId);
+  let sum = 0;
+  shelves.forEach(sh => { sum += shelfConsumption(sh.id, days, skuId); });
+  return sum;
+}
+
+function shelfFill(sh){
+  const a = lastAudit(sh.id);
+  if (!a) return { pct: 0, total: 0, target: 0, stock: 0, fill: 0 };
+  const st = stockOf(a);
+  let total = 0, target = 0, stock = 0;
+  sh.items.forEach(it => {
+    total += (st[it.skuId] || 0);
+    target += it.target;
+    stock += (st[it.skuId] || 0);
+  });
+  const pct = target ? Math.round(total / target * 100) : 0;
+  return { pct, total, target, stock, fill: pct };
+}
+
+function shelfStatus(sh){
+  const a = lastAudit(sh.id);
+  if (!a) return { status:'nodata', pct:0, deadValue:0, items:0, empty:0, ageH: 999 };
+  const ageH = (Date.now() - a.ts) / 3600000;
+  if (ageH > 36) return { status:'nodata', pct:0, deadValue:0, items:0, empty:0, ageH };
+
+  const st = stockOf(a);
+  let total = 0, target = 0, empty = 0;
+  let deadValue = 0;
+  const statuses = [];
+  sh.items.forEach(it => {
+    const s = st[it.skuId] || 0;
+    total += s; target += it.target;
+    if (s === 0) empty++;
+    const daily = storeSkuConsumption(sh.storeId, it.skuId, 30) / 30;
+    const dos = daily > 0 ? s / daily : 999;
+    if (s === 0) statuses.push('critical');
+    else if (dos > 60 && s > it.target * 1.3){ statuses.push('over'); deadValue += s * ((sku(it.skuId) && sku(it.skuId).price) || 100); }
+    else if (s / it.target < 0.3) statuses.push('critical');
+    else if (s / it.target < 0.7) statuses.push('low');
+    else statuses.push('ok');
+  });
+  const pct = target ? Math.round(total / target * 100) : 0;
+
+  let status;
+  if (statuses.includes('critical') || pct < 40) status = 'critical';
+  else if (statuses.includes('over')) status = 'over';
+  else if (statuses.includes('low') || pct < 70) status = 'low';
+  else status = 'ok';
+
+  return { status, pct, deadValue, items: sh.items.length, empty, ageH };
+}
+
+/* ── визуализация стеллажа/витрины (SVG, по мотивам мебели из ЛДСП) ── */
+function shelfVisual(sh){
+  const audit = lastAudit(sh.id);
+  const stk = audit ? stockOf(audit) : {};
+  const items = sh.items.map(it => {
+    const s = stk[it.skuId] || 0;
+    const rec = sku(it.skuId);
+    let st;
+    if (s === 0) st = 'critical';
+    else if (s / it.target < 0.3) st = 'critical';
+    else if (s / it.target < 0.7) st = 'low';
+    else if (s / it.target > 2) st = 'over';
+    else st = 'ok';
+    return { name: rec ? rec.name : it.skuId, stock: s, target: it.target, st, price: rec ? rec.price : 0 };
+  });
+
+  const uid = 'sv' + String(sh.id).replace(/[^a-z0-9]/gi, '');
+  const isCase = sh.type === 'showcase';
+  const isFridge = sh.type === 'fridge';
+  const W = 360;
+  const L = 50, R = 306, TOP = 34;
+  const BOT = isCase ? 196 : 236;
+  const dx = 24, dy = -11;
+  const rows = Math.min(5, Math.max(3, Math.ceil(items.length / 2)));
+
+  const color = s => ({ ok:'#22c55e', low:'#eab308', critical:'#ef4444', over:'#a855f7' }[s] || '#6b7280');
+
+  let g = '';
+  /* корпус: верх, бок, фасад */
+  g += `<polygon points="${L},${TOP} ${R},${TOP} ${R+dx},${TOP+dy} ${L+dx},${TOP+dy}" fill="#2b3552"/>`;
+  g += `<polygon points="${R},${TOP} ${R+dx},${TOP+dy} ${R+dx},${BOT+dy} ${R},${BOT}" fill="#1b2338"/>`;
+  g += `<rect x="${L}" y="${TOP}" width="${R-L}" height="${BOT-TOP}" fill="#121829" stroke="#33405f" stroke-width="1.5"/>`;
+  /* полость */
+  g += `<rect x="${L+8}" y="${TOP+8}" width="${R-L-16}" height="${BOT-TOP-16}" fill="#0b1020"/>`;
+
+  /* задняя штора/стекло */
+  if (isFridge){
+    g += `<rect x="${L+8}" y="${TOP+8}" width="${R-L-16}" height="${BOT-TOP-16}" fill="url(#${uid}g)"/>`;
+  } else if (isCase){
+    g += `<rect x="${L+8}" y="${TOP+8}" width="${R-L-16}" height="${BOT-TOP-16}" fill="url(#${uid}g)" opacity=".7"/>`;
+  } else {
+    for (let i = 0; i < 12; i++){
+      const x = L + 10 + i * ((R-L-20)/12);
+      g += `<rect x="${x}" y="${TOP+8}" width="${(R-L-20)/24}" height="${BOT-TOP-16}" fill="#0a0e19" opacity=".9"/>`;
+    }
+  }
+
+  /* полки и товары */
+  const innerTop = TOP + 12, innerBot = BOT - 12;
+  const rowH = (innerBot - innerTop) / rows;
+  const per = Math.ceil(items.length / rows);
+  const slots = 5;
+  const stepX = (R - L - 44) / slots;
+  const slotW = Math.min(30, stepX - 4);
+
+  for (let r = 0; r < rows; r++){
+    const y = innerBot - (r + 1) * rowH;
+    const baseY = y + rowH - 5;
+    g += `<rect x="${L+10}" y="${baseY}" width="${R-L-20}" height="${isCase?2:1.5}" fill="${isFridge?'#7fb4ff':'#9fe0cf'}" opacity=".55"/>`;
+    g += `<rect x="${L+10}" y="${baseY+2}" width="${R-L-20}" height="1.5" fill="#ffd27a" opacity=".9" filter="url(#${uid}f)"/>`;
+
+    /* пустые места на полке */
+    for (let s = 0; s < slots; s++){
+      const sx = L + 22 + s * stepX;
+      g += `<rect x="${sx}" y="${baseY-13}" width="${slotW}" height="11" rx="2" fill="none" stroke="#33456b" stroke-width="1" stroke-dasharray="2 2"/>`;
+    }
+
+    const slice = items.slice(r * per, (r + 1) * per).slice(0, slots);
+    slice.forEach((it, j) => {
+      const x = L + 22 + j * stepX;
+      const ratio = Math.min(1, it.stock / Math.max(1, it.target));
+      if (it.stock === 0){
+        g += `<rect x="${x}" y="${baseY-13}" width="${slotW}" height="11" rx="2" fill="rgba(239,68,68,.12)" stroke="${color(it.st)}" stroke-width="1.2" stroke-dasharray="3 2" opacity=".95"><title>${esc(it.name)}: пусто</title></rect>`;
+        return;
+      }
+      const n = Math.max(1, Math.min(3, Math.round(3 * ratio)));
+      for (let b = 0; b < n; b++){
+        const bw = (slotW - (n - 1) * 2) / n;
+        const bx = x + b * (bw + 2);
+        const bh = 10 + 12 * ratio;
+        g += `<rect x="${bx}" y="${baseY-bh}" width="${bw}" height="${bh}" rx="1.4" fill="${color(it.st)}" opacity="${0.92 - b * 0.08}"/>`;
+        g += `<rect x="${bx}" y="${baseY-bh}" width="${bw}" height="2" rx="1" fill="#ffffff" opacity=".3"/>`;
+      }
+      g += `<title>${esc(it.name)}: ${it.stock} из ${it.target}</title>`;
+    });
+  }
+
+  /* стеклянная дверь / подсветка / фурнитура */
+  if (isFridge){
+    g += `<rect x="${L+4}" y="${TOP+4}" width="${R-L-8}" height="${BOT-TOP-8}" fill="url(#${uid}g)" opacity=".5" stroke="#7fb4ff" stroke-width="1"/>`;
+    g += `<rect x="${L+4}" y="${TOP+4}" width="18" height="${BOT-TOP-8}" fill="#ffffff" opacity=".06"/>`;
+    g += `<rect x="${R-14}" y="${TOP+18}" width="4" height="26" rx="2" fill="#aab6c8"/>`;
+  } else if (isCase){
+    /* тумба */
+    g += `<rect x="${L}" y="${BOT}" width="${R-L}" height="34" fill="#232d47" stroke="#33405f"/>`;
+    g += `<rect x="${L+6}" y="${BOT+5}" width="${(R-L)/2-9}" height="24" rx="2" fill="#1a2236" stroke="#2c3852"/>`;
+    g += `<rect x="${L+(R-L)/2+3}" y="${BOT+5}" width="${(R-L)/2-9}" height="24" rx="2" fill="#1a2236" stroke="#2c3852"/>`;
+    g += `<rect x="${L+(R-L)/2-6}" y="${BOT+14}" width="12" height="3" rx="1.5" fill="#8e9bb5"/>`;
+    g += `<rect x="${L+4}" y="${TOP+4}" width="${R-L-8}" height="${BOT-TOP-8}" fill="url(#${uid}g)" opacity=".55" stroke="#9fe0cf" stroke-width="1"/>`;
+    g += `<rect x="${L+4}" y="${TOP+4}" width="${(R-L)/3}" height="${BOT-TOP-8}" fill="#ffffff" opacity=".05"/>`;
+  } else {
+    /* шторы по бокам + штанга */
+    g += `<rect x="${L+4}" y="${TOP+6}" width="10" height="${BOT-TOP-12}" fill="#07090f"/>`;
+    g += `<rect x="${R-14}" y="${TOP+6}" width="10" height="${BOT-TOP-12}" fill="#07090f"/>`;
+    g += `<rect x="${L+2}" y="${TOP+6}" width="${R-L-4}" height="2" fill="#8e9bb5"/>`;
+  }
+
+  /* цоколь */
+  g += `<rect x="${L}" y="${BOT}" width="${R-L}" height="${isCase?0:7}" fill="#0a0e18"/>`;
+  if (!isCase){
+    g += `<rect x="${L+10}" y="${BOT-1}" width="${R-L-20}" height="2" fill="#ffd27a" opacity=".6" filter="url(#${uid}f)"/>`;
+  }
+
+  return `
+  <svg viewBox="0 0 ${W} ${isCase?252:262}" class="shelf-svg" role="img" aria-label="Визуализация полки ${esc(sh.zone)}">
+    <defs>
+      <linearGradient id="${uid}g" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#dff4ff" stop-opacity=".22"/>
+        <stop offset="1" stop-color="#7fb4ff" stop-opacity=".10"/>
+      </linearGradient>
+      <filter id="${uid}f" x="-40%" y="-300%" width="180%" height="700%">
+        <feGaussianBlur stdDeviation="2.4" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    ${g}
+  </svg>`;
+}
+
+function storeStats(storeId){
+  const shelves = DB.shelves.filter(s => s.storeId === storeId);
+  const st = shelves.map(shelfStatus);
+  const withData = st.filter(x => x.status !== 'nodata');
+  const fill = withData.length ? Math.round(withData.reduce((s, x) => s + Math.min(100, x.pct), 0) / withData.length) : 0;
+  const critical = st.filter(x => x.status === 'critical').length;
+  const dead = st.reduce((s, x) => s + x.deadValue, 0);
+  const stale = st.filter(x => x.status === 'nodata').length;
+  return { total: shelves.length, fill, critical, dead, stale, shelves, statuses: st };
+}
+
+/* матрица: расход/день по SKU в магазине */
+function matrixData(days = 30){
+  const rows = DB.skus.map(s => {
+    const cells = {};
+    DB.stores.forEach(st => {
+      const total = storeSkuConsumption(st.id, s.id, days);
+      cells[st.id] = Math.round(total / days * 10) / 10;
+    });
+    return { sku: s, cells };
+  });
+  return rows;
+}
+
+/* рекомендации перевозок: из магазина с залежами в магазин с дефицитом */
+function transfers(){
+  const out = [];
+  DB.skus.forEach(s => {
+    const data = DB.stores.map(st => {
+      const shel = DB.shelves.filter(x => x.storeId === st.id && x.items.some(i => i.skuId === s.id));
+      let stock = 0, target = 0;
+      shel.forEach(sh => {
+        const a = lastAudit(sh.id);
+        if (!a) return;
+        const stt = stockOf(a);
+        sh.items.filter(i => i.skuId === s.id).forEach(i => {
+          stock += stt[i.skuId] || 0;
+          target += i.target;
+        });
+      });
+      const daily = storeSkuConsumption(st.id, s.id, 30) / 30;
+      const dos = daily > 0 ? stock / daily : 999;
+      return { storeId: st.id, stock, target, daily, dos };
+    });
+
+    for (let a = 0; a < data.length; a++){
+      for (let b = 0; b < data.length; b++){
+        if (a === b) continue;
+        const src = data[a], dst = data[b];
+        if (src.dos > 45 && src.stock > src.target * 1.2 && dst.stock < dst.target * 0.5 && dst.daily > 0){
+          const qty = Math.min(Math.round(src.stock * 0.5), Math.ceil(dst.daily * 7));
+          if (qty >= 3){
+            out.push({ sku: s, from: src.storeId, to: dst.storeId, qty, value: qty * s.price });
+          }
+        }
+      }
+    }
+  });
+  out.sort((a, b) => b.value - a.value);
+  return out.slice(0, 8);
+}
+
+/* «чего не хватает»: нулевые остатки при спросе */
+function shortages(){
+  const out = [];
+  DB.stores.forEach(st => {
+    DB.shelves.filter(sh => sh.storeId === st.id).forEach(sh => {
+      const a = lastAudit(sh.id);
+      if (!a) return;
+      const stk = stockOf(a);
+      sh.items.forEach(it => {
+        const s = stk[it.skuId] || 0;
+        const daily = storeSkuConsumption(st.id, it.skuId, 30) / 30;
+        if (s === 0 && daily > 0.05){
+          out.push({ storeId: st.id, shelfId: sh.id, sku: sku(it.skuId), stock: s, daily, target: it.target });
+        }
+      });
+    });
+  });
+  out.sort((a, b) => b.daily - a.daily);
+  return out;
+}
+
+/* топ изменения спроса: расход 14 дней vs предыдущие 14 */
+function demandTrend(){
+  const rows = DB.skus.map(s => {
+    let now = 0, prev = 0;
+    DB.stores.forEach(st => {
+      now += storeSkuConsumption(st.id, s.id, 14);
+      const all = storeSkuConsumption(st.id, s.id, 28);
+      prev += Math.max(0, all - now);
+    });
+    const delta = now - prev;
+    return { sku: s, now, prev, delta };
+  }).filter(r => r.now + r.prev > 0);
+  rows.sort((a, b) => b.delta - a.delta);
+  return rows;
+}
+
+/* ═══════════════════════════════════════════════
+   РОУТЕР
+   ═══════════════════════════════════════════════ */
+const app = document.getElementById('app');
+
+function go(hash){ location.hash = hash; }
+
+function route(){
+  const h = (location.hash || '#/').replace(/^#\/?/, '');
+  const parts = h.split('/').filter(Boolean);
+
+  if (parts[0] === 'seller' && SESSION && SESSION.role === 'seller') return viewSeller(parts);
+  if (parts[0] === 'owner' && SESSION && SESSION.role === 'owner') return viewOwner(parts);
+  return viewLogin();
+}
+
+function saveSession(s){
+  SESSION = s;
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch (e){}
+}
+function logout(){
+  SESSION = null;
+  try { localStorage.removeItem(SESSION_KEY); } catch (e){}
+  go('#/');
+}
+
+/* ═══════════════════════════════════════════════
+   ВХОД
+   ═══════════════════════════════════════════════ */
+function viewLogin(){
+  app.innerHTML = `
+    <div class="login">
+      <div class="login-card">
+        <div class="row" style="margin-bottom:14px">
+          <div class="logo">🛒 Полка <em>сеть</em></div>
+        </div>
+        <h1>Остатки полок под контролем</h1>
+        <p class="muted small">Продавец вносит остатки и запросы — владелец видит магазины, полки и деньги.</p>
+
+        <div class="role">
+          <button data-role="seller">
+            <b>📱 Я продавец</b>
+            <span>Обход полок, остатки, фото, запросы покупателей</span>
+          </button>
+          <button data-role="owner">
+            <b>📊 Я владелец</b>
+            <span>Дашборд сети: полки, отчёты, перевозки, спрос</span>
+          </button>
+        </div>
+
+        <div id="loginBody"></div>
+        <p class="tiny muted" style="margin-top:14px">
+          Демо: данные хранятся в браузере. Для синхронизации между устройствами нужен сервер.
+        </p>
+      </div>
+    </div>`;
+
+  app.querySelectorAll('[data-role]').forEach(btn => btn.addEventListener('click', () => {
+    const role = btn.dataset.role;
+    if (role === 'owner'){
+      saveSession({ role:'owner' });
+      go('#/owner');
+      return;
+    }
+    document.getElementById('loginBody').innerHTML = `
+      <div class="field">
+        <label>Магазин</label>
+        <select id="selStore">${DB.stores.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select>
+      </div>
+      <div class="field">
+        <label>Сотрудник</label>
+        <select id="selSeller"></select>
+      </div>
+      <button class="btn primary" id="goSeller" style="width:100%">Войти в кабинет</button>`;
+
+    const storeSel = document.getElementById('selStore');
+    const sellerSel = document.getElementById('selSeller');
+    function fillSellers(){
+      const list = DB.sellers.filter(u => u.storeId === storeSel.value);
+      sellerSel.innerHTML = list.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('');
+    }
+    storeSel.addEventListener('change', fillSellers);
+    fillSellers();
+    document.getElementById('goSeller').addEventListener('click', () => {
+      saveSession({ role:'seller', sellerId: sellerSel.value });
+      go('#/seller');
+    });
+  }));
+}
+
+/* ═══════════════════════════════════════════════
+   ТОСТЫ И ФОТО
+   ═══════════════════════════════════════════════ */
+function toast(msg){
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#151b2d;border:1px solid #242c44;color:#e5e9f0;padding:9px 16px;border-radius:10px;font-size:13px;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.5);transition:.25s;opacity:0;max-width:90vw';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(() => { t.style.opacity = '1'; });
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2200);
+}
+
+function readPhoto(file, cb){
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const max = 720;
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      cb(c.toDataURL('image/jpeg', 0.62));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function isToday(ts){
+  const d = new Date(ts), n = new Date();
+  return d.getDate() === n.getDate() && d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear();
+}
+
+/* ═══════════════════════════════════════════════
+   КАБИНЕТ ПРОДАВЦА
+   ═══════════════════════════════════════════════ */
+function sellerShell(me, active, body){
+  const st = store(me.storeId);
+  const shelves = DB.shelves.filter(s => s.storeId === me.storeId);
+  const doneToday = new Set(
+    DB.audits.filter(a => a.sellerId === me.id && isToday(a.ts)).map(a => a.shelfId)
+  ).size;
+  const pct = shelves.length ? Math.round(doneToday / shelves.length * 100) : 0;
+
+  return `
+    <div class="topbar">
+      <div class="logo">🛒 Полка <em>продавец</em></div>
+      <div class="spacer"></div>
+      <span class="tiny muted">${esc(st.name)}</span>
+      <button class="btn sm ghost" id="logoutBtn">Выйти</button>
+    </div>
+    <div class="seller-frame">
+      <div class="shopline">
+        <span>👤 ${esc(me.name)}</span>
+        <span>·</span>
+        <span>${esc(st.address)}</span>
+      </div>
+      <div class="small muted">Проверено сегодня: ${doneToday} из ${shelves.length} полок</div>
+      <div class="progress"><i style="width:${pct}%"></i></div>
+
+      <div class="tabs">
+        <button data-tab="shelves" class="${active === 'shelves' ? 'on' : ''}">Полки</button>
+        <button data-tab="requests" class="${active === 'requests' ? 'on' : ''}">Запросы покупателей</button>
+      </div>
+      ${body}
+    </div>`;
+}
+
+function viewSeller(parts){
+  const me = seller(SESSION.sellerId);
+  if (!me){ logout(); return; }
+  const tab = parts[1] || 'shelves';
+
+  if (tab === 'shelf') return viewSellerShelf(parts[2], me);
+
+  let body;
+  if (tab === 'requests') body = sellerRequests(me);
+  else body = sellerShelves(me);
+
+  app.innerHTML = sellerShell(me, tab === 'requests' ? 'requests' : 'shelves', body);
+  bindSeller(me);
+}
+
+function sellerShelves(me){
+  const shelves = DB.shelves.filter(s => s.storeId === me.storeId);
+  const rows = shelves.map(sh => {
+    const st = shelfStatus(sh);
+    const a = lastAudit(sh.id);
+    const done = a && isToday(a.ts);
+    return `
+      <button class="shelf-row" data-shelf="${sh.id}">
+        <span class="dot" style="width:8px;height:8px;border-radius:50%;background:${statusColor(st.status)}"></span>
+        <span class="info">
+          <span class="nm">${esc(sh.zone)} · секция ${sh.section}</span>
+          <span class="sub">${st.items} позиций · ${a ? fmtAgo(a.ts) : 'нет данных'}${st.deadValue ? ' · 💸 ' + fmtMoney(st.deadValue) : ''}</span>
+        </span>
+        ${done ? '<span class="badge done">сегодня</span>' : '<span class="badge wait">проверить</span>'}
+        <span class="go">›</span>
+      </button>`;
+  }).join('');
+
+  return `<div class="small muted" style="margin-bottom:8px">Полки магазина — нажмите, чтобы внести остатки</div>${rows}`;
+}
+
+function viewSellerShelf(shelfId, me){
+  const sh = shelf(shelfId);
+  if (!sh || sh.storeId !== me.storeId){ go('#/seller'); return; }
+  const st = store(me.storeId);
+  const a = lastAudit(sh.id);
+  const stk = a ? stockOf(a) : {};
+
+  const rows = sh.items.map(it => {
+    const val = (stk[it.skuId] !== undefined) ? stk[it.skuId] : it.target;
+    const s = sku(it.skuId);
+    return `
+      <div class="audit-item" data-sku="${it.skuId}">
+        <div class="an">${esc(s ? s.name : it.skuId)}<small>план ${it.target} · ${fmtMoney(s ? s.price : 0)}</small></div>
+        <div class="stepper">
+          <button data-dec>−</button>
+          <input type="number" min="0" value="${val}" data-input>
+          <button data-inc>+</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  app.innerHTML = `
+    <div class="topbar">
+      <button class="btn sm ghost" id="backBtn">← Назад</button>
+      <div class="spacer"></div>
+      <span class="tiny muted">${esc(st.name)}</span>
+      <button class="btn sm ghost" id="logoutBtn">Выйти</button>
+    </div>
+    <div class="seller-frame">
+      <h2 style="font-size:17px;margin-bottom:2px">${esc(sh.zone)} · секция ${sh.section}</h2>
+      <div class="small muted" style="margin-bottom:12px">${a ? 'последний аудит: ' + fmtAgo(a.ts) : 'аудита ещё не было'}</div>
+      <div class="visual-card">
+        <div class="visual-head">Полка целиком</div>
+        ${shelfVisual(sh)}
+        <div class="visual-legend">
+          <span><i style="background:#22c55e"></i>ОК</span>
+          <span><i style="background:#eab308"></i>Мало</span>
+          <span><i style="background:#ef4444"></i>Критично</span>
+          <span><i style="background:#a855f7"></i>Залежь</span>
+          <span><i class="empty"></i>Пусто</span>
+        </div>
+      </div>
+      ${rows}
+
+      <div class="photo-box" id="photoBox">
+        ${a && a.photo ? `<img src="${a.photo}" alt="фото полки">` : ''}
+        <span>📷 Сфотографировать полку (доказательство аудита)</span>
+        <input type="file" accept="image/*" capture="environment" id="photoInput" style="display:none">
+      </div>
+
+      <div class="fab">
+        <button class="btn ghost" id="emptyAll" style="flex:1">Все пусто</button>
+        <button class="btn primary" id="saveAudit" style="flex:2">Сохранить аудит</button>
+      </div>
+    </div>`;
+
+  const draft = {};
+  sh.items.forEach(it => { draft[it.skuId] = (stk[it.skuId] !== undefined) ? stk[it.skuId] : it.target; });
+  let photo = a ? a.photo : null;
+
+  app.querySelectorAll('.audit-item').forEach(row => {
+    const id = row.dataset.sku;
+    const input = row.querySelector('[data-input]');
+    row.querySelector('[data-dec]').addEventListener('click', () => {
+      draft[id] = Math.max(0, (draft[id] || 0) - 1);
+      input.value = draft[id];
+    });
+    row.querySelector('[data-inc]').addEventListener('click', () => {
+      draft[id] = (draft[id] || 0) + 1;
+      input.value = draft[id];
+    });
+    input.addEventListener('input', () => {
+      draft[id] = Math.max(0, parseInt(input.value, 10) || 0);
+    });
+  });
+
+  document.getElementById('photoBox').addEventListener('click', () => {
+    document.getElementById('photoInput').click();
+  });
+  document.getElementById('photoInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    readPhoto(file, dataUrl => {
+      photo = dataUrl;
+      const box = document.getElementById('photoBox');
+      box.innerHTML = '<img src="' + dataUrl + '" alt="фото полки"><span>📷 Заменить фото</span>';
+    });
+  });
+
+  document.getElementById('emptyAll').addEventListener('click', () => {
+    sh.items.forEach(it => { draft[it.skuId] = 0; });
+    app.querySelectorAll('.audit-item').forEach(row => {
+      row.querySelector('[data-input]').value = 0;
+    });
+  });
+
+  document.getElementById('saveAudit').addEventListener('click', () => {
+    DB.audits.push({
+      id: uid('a'),
+      shelfId: sh.id,
+      storeId: sh.storeId,
+      sellerId: me.id,
+      ts: Date.now(),
+      items: sh.items.map(it => ({ skuId: it.skuId, stock: draft[it.skuId] || 0 })),
+      photo
+    });
+    saveDB(DB);
+    toast('Аудит сохранён — данные у владельца обновились');
+    go('#/seller');
+  });
+
+  document.getElementById('backBtn').addEventListener('click', () => go('#/seller'));
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+}
+
+function sellerRequests(me){
+  const list = DB.requests.filter(r => r.storeId === me.storeId).sort((a, b) => b.ts - a.ts);
+  const rows = list.length ? list.map(r => {
+    const liked = r.likes.includes(me.id);
+    return `
+      <div class="req">
+        <div class="txt">${esc(r.text)}
+          <div class="meta">${esc((seller(r.sellerId) && seller(r.sellerId).name) || 'сотрудник')} · ${fmtAgo(r.ts)}</div>
+        </div>
+        <button class="like ${liked ? 'on' : ''}" data-like="${r.id}">
+          <b>${r.likes.length}</b><span>лайк</span>
+        </button>
+      </div>`;
+  }).join('') : '<div class="muted small" style="padding:20px 0;text-align:center">Пока нет запросов — добавьте первый</div>';
+
+  return `
+    <div class="card" style="margin-bottom:12px">
+      <div class="small muted" style="margin-bottom:8px">Что спрашивают покупатели, но нет на полке</div>
+      <div class="field">
+        <label>Позиция или запрос</label>
+        <input id="reqText" type="text" placeholder="Например: гречка в пакетах" maxlength="120">
+      </div>
+      <button class="btn primary" id="addReq" style="width:100%">Добавить запрос</button>
+    </div>
+    ${rows}`;
+}
+
+function bindSeller(me){
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) logoutBtn.addEventListener('click', logout);
+
+  app.querySelectorAll('[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => go('#/seller/' + btn.dataset.tab));
+  });
+
+  app.querySelectorAll('[data-shelf]').forEach(btn => {
+    btn.addEventListener('click', () => go('#/seller/shelf/' + btn.dataset.shelf));
+  });
+
+  const add = document.getElementById('addReq');
+  if (add){
+    add.addEventListener('click', () => {
+      const inp = document.getElementById('reqText');
+      const text = inp.value.trim();
+      if (!text) return;
+      DB.requests.push({
+        id: uid('r'), storeId: me.storeId, sellerId: me.id,
+        text, skuId: null, ts: Date.now(), likes: []
+      });
+      saveDB(DB);
+      toast('Запрос добавлен');
+      viewSeller(['seller', 'requests']);
+    });
+  }
+
+  app.querySelectorAll('[data-like]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const r = DB.requests.find(x => x.id === btn.dataset.like);
+      if (!r) return;
+      const i = r.likes.indexOf(me.id);
+      if (i >= 0) r.likes.splice(i, 1);
+      else r.likes.push(me.id);
+      saveDB(DB);
+      viewSeller(['seller', 'requests']);
+    });
+  });
+}
+
+function statusColor(s){
+  return { ok:'#22c55e', low:'#eab308', critical:'#ef4444', over:'#a855f7', nodata:'#6b7280' }[s] || '#6b7280';
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ==== MODULES START ==== */
+/* ═══════════════════════════════════════════════
+   АГРЕГАТЫ ДЛЯ ДАШБОРДА ВЛАДЕЛЬЦА (parts/insights.js)
+
+   Чистые функции: только читают глобальный DB и готовую
+   аналитику из index.html — shelfStatus, lastAudit, stockOf,
+   shelfConsumption, storeSkuConsumption, shortages, transfers,
+   sku/shelf/store/seller. Без DOM, async и мутаций данных.
+
+   Внутренние помощники имеют префикс ins и при отсутствии
+   аудитов/полок/хелперов возвращают нули и пустые массивы,
+   а не бросают исключения.
+   ═══════════════════════════════════════════════ */
+
+/* ── базовая обвязка над DB ── */
+
+function insDayMs(){ return 86400000; }
+
+function insDb(){
+  try { return DB || {}; } catch (e){ return {}; }
+}
+
+function insList(key){
+  const list = insDb()[key];
+  return Array.isArray(list) ? list : [];
+}
+
+function insShelves(){ return insList('shelves'); }
+function insStores(){ return insList('stores'); }
+function insSellers(){ return insList('sellers'); }
+function insSkus(){ return insList('skus'); }
+function insAudits(){ return insList('audits'); }
+function insRequests(){ return insList('requests'); }
+
+function insNum(v){
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function insInt(v, def, min, max){
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n)) return def;
+  return Math.min(max, Math.max(min, n));
+}
+
+/* ── даты (локальный день) ── */
+
+function insStartOfDay(ts){
+  const d = new Date(insNum(ts));
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+function insAddDays(ts, days){
+  const d = new Date(insStartOfDay(ts));
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + insInt(days, 0, -4000, 4000)).getTime();
+}
+
+function insIsToday(ts){
+  return insStartOfDay(ts) === insStartOfDay(Date.now());
+}
+
+/* ── безопасные ссылки на существующие функции ── */
+
+function insSku(id){
+  const fn = typeof sku === 'function' ? sku : null;
+  if (fn){
+    try { const found = fn(id); if (found) return found; } catch (e){}
+  }
+  return insSkus().find(x => x && x.id === id) || null;
+}
+
+function insShelf(id){
+  const fn = typeof shelf === 'function' ? shelf : null;
+  if (fn){
+    try { const found = fn(id); if (found) return found; } catch (e){}
+  }
+  return insShelves().find(x => x && x.id === id) || null;
+}
+
+function insStore(id){
+  const fn = typeof store === 'function' ? store : null;
+  if (fn){
+    try { const found = fn(id); if (found) return found; } catch (e){}
+  }
+  return insStores().find(x => x && x.id === id) || null;
+}
+
+function insSeller(id){
+  const fn = typeof seller === 'function' ? seller : null;
+  if (fn){
+    try { const found = fn(id); if (found) return found; } catch (e){}
+  }
+  return insSellers().find(x => x && x.id === id) || null;
+}
+
+/* ── аудиты, остатки, статусы ── */
+
+function insShelfAudits(shelfId){
+  const fn = typeof shelfAudits === 'function' ? shelfAudits : null;
+  if (fn){
+    try {
+      const list = fn(shelfId);
+      if (Array.isArray(list)){
+        return list.slice().sort((a, b) => insNum(a && a.ts) - insNum(b && b.ts));
+      }
+    } catch (e){}
+  }
+  return insAudits()
+    .filter(a => a && a.shelfId === shelfId)
+    .sort((a, b) => insNum(a.ts) - insNum(b.ts));
+}
+
+function insLastAudit(shelfId){
+  const fn = typeof lastAudit === 'function' ? lastAudit : null;
+  if (fn){
+    try { const found = fn(shelfId); if (found) return found; } catch (e){}
+  }
+  const list = insShelfAudits(shelfId);
+  return list.length ? list[list.length - 1] : null;
+}
+
+function insStockOf(audit){
+  const fn = typeof stockOf === 'function' ? stockOf : null;
+  if (fn){
+    try {
+      const map = fn(audit);
+      if (map && typeof map === 'object') return map;
+    } catch (e){}
+  }
+  const map = {};
+  const items = audit && Array.isArray(audit.items) ? audit.items : [];
+  items.forEach(it => {
+    if (it && it.skuId != null) map[it.skuId] = insNum(it.stock);
+  });
+  return map;
+}
+
+function insShelfStatus(sh){
+  const emptyStatus = { status:'nodata', pct:0, deadValue:0, items:0, empty:0, ageH:999 };
+  if (!sh) return emptyStatus;
+
+  const fn = typeof shelfStatus === 'function' ? shelfStatus : null;
+  if (fn){
+    try {
+      const st = fn(sh);
+      if (st && typeof st === 'object') return st;
+    } catch (e){}
+  }
+
+  /* запасной расчёт, если shelfStatus недоступен */
+  const items = Array.isArray(sh.items) ? sh.items : [];
+  const audit = insLastAudit(sh.id);
+  if (!audit) return { status:'nodata', pct:0, deadValue:0, items:items.length, empty:0, ageH:999 };
+
+  const ageH = (Date.now() - insNum(audit.ts)) / 3600000;
+  if (ageH > 36 || ageH < 0){
+    return { status:'nodata', pct:0, deadValue:0, items:items.length, empty:0, ageH };
+  }
+
+  const stock = insStockOf(audit);
+  let total = 0, target = 0, empty = 0, deadValue = 0;
+  const flags = [];
+
+  items.forEach(it => {
+    if (!it) return;
+    const s = insNum(stock[it.skuId]);
+    const plan = insNum(it.target);
+    total += s;
+    target += plan;
+
+    if (s === 0){
+      empty++;
+      flags.push('critical');
+      return;
+    }
+
+    const daily = insStoreSkuConsumption(sh.storeId, it.skuId, 30) / 30;
+    const dos = daily > 0 ? s / daily : 999;
+    if (dos > 60){
+      flags.push('over');
+      const skuRec = insSku(it.skuId);
+      deadValue += s * (insNum(skuRec && skuRec.price) || 100);
+    } else if (plan > 0 && s / plan < 0.3){
+      flags.push('critical');
+    } else if (plan > 0 && s / plan < 0.7){
+      flags.push('low');
+    } else {
+      flags.push('ok');
+    }
+  });
+
+  const pct = target ? Math.round(total / target * 100) : 0;
+  let status;
+  if (flags.indexOf('critical') >= 0 || pct < 40) status = 'critical';
+  else if (flags.indexOf('over') >= 0) status = 'over';
+  else if (flags.indexOf('low') >= 0 || pct < 70) status = 'low';
+  else status = 'ok';
+
+  return { status, pct, deadValue, items:items.length, empty, ageH };
+}
+
+function insIsOos(st){
+  return !!st && (st.status === 'critical' || insNum(st.empty) > 0);
+}
+
+/* ── расход ── */
+
+function insShelfConsumption(shelfId, days, skuId){
+  const fn = typeof shelfConsumption === 'function' ? shelfConsumption : null;
+  if (fn){
+    try {
+      const v = fn(shelfId, days, skuId);
+      if (Number.isFinite(v)) return v;
+    } catch (e){}
+  }
+
+  const since = Date.now() - insInt(days, 30, 0, 100000) * insDayMs();
+  const list = insShelfAudits(shelfId).filter(a => insNum(a.ts) > since);
+  if (list.length < 2) return 0;
+
+  let sum = 0;
+  for (let i = 1; i < list.length; i++){
+    const prev = insStockOf(list[i - 1]);
+    const cur = insStockOf(list[i]);
+    Object.keys(cur).forEach(id => {
+      if (skuId && id !== skuId) return;
+      const delta = insNum(prev[id]) - insNum(cur[id]);
+      if (delta > 0) sum += delta;
+    });
+  }
+  return sum;
+}
+
+function insStoreSkuConsumption(storeId, skuId, days){
+  const fn = typeof storeSkuConsumption === 'function' ? storeSkuConsumption : null;
+  if (fn){
+    try {
+      const v = fn(storeId, skuId, days);
+      if (Number.isFinite(v)) return v;
+    } catch (e){}
+  }
+  let sum = 0;
+  insShelves().forEach(sh => {
+    if (sh && sh.storeId === storeId) sum += insShelfConsumption(sh.id, days, skuId);
+  });
+  return sum;
+}
+
+function insStoreIds(){
+  const ids = [];
+  insStores().forEach(st => {
+    if (st && st.id != null && !ids.includes(st.id)) ids.push(st.id);
+  });
+  if (!ids.length){
+    insShelves().forEach(sh => {
+      if (sh && sh.storeId != null && !ids.includes(sh.storeId)) ids.push(sh.storeId);
+    });
+  }
+  return ids;
+}
+
+function insNetworkConsumption(skuId, days){
+  let sum = 0;
+  insStoreIds().forEach(storeId => { sum += insStoreSkuConsumption(storeId, skuId, days); });
+  return sum;
+}
+
+/* ── безопасные вызовы готовых отчётов ── */
+
+function insShortages(){
+  const fn = typeof shortages === 'function' ? shortages : null;
+  if (!fn) return [];
+  try { const list = fn(); return Array.isArray(list) ? list : []; } catch (e){ return []; }
+}
+
+function insTransfers(){
+  const fn = typeof transfers === 'function' ? transfers : null;
+  if (!fn) return [];
+  try { const list = fn(); return Array.isArray(list) ? list : []; } catch (e){ return []; }
+}
+
+/* ═══════════════════════════════════════════════
+   1. KPI СЕТИ
+   oos — полки с нулевыми остатками (critical или empty > 0);
+   dead — сумма денег в залежах; fill — средний % с cap 100.
+   ═══════════════════════════════════════════════ */
+function networkKpis(){
+  let oos = 0, critical = 0, dead = 0;
+  let fillSum = 0, fillCount = 0;
+
+  insShelves().forEach(sh => {
+    const st = insShelfStatus(sh);
+    if (st.status === 'critical') critical++;
+    if (insIsOos(st)) oos++;
+    dead += insNum(st.deadValue);
+    if (st.status !== 'nodata'){
+      fillSum += Math.min(100, Math.max(0, insNum(st.pct)));
+      fillCount++;
+    }
+  });
+
+  const weekAgo = Date.now() - 7 * insDayMs();
+  const requests = insRequests().filter(r => r && insNum(r.ts) >= weekAgo).length;
+  const auditsToday = insAudits().filter(a => a && insIsToday(a.ts)).length;
+
+  return {
+    oos,
+    critical,
+    dead,
+    requests,
+    auditsToday,
+    fill: fillCount ? Math.round(fillSum / fillCount) : 0
+  };
+}
+
+/* ═══════════════════════════════════════════════
+   2. РЕЙТИНГ МАГАЗИНОВ (fill по убыванию)
+   ═══════════════════════════════════════════════ */
+function storeRanking(){
+  const shelves = insShelves();
+
+  const rows = insStores().map(st => {
+    const list = shelves.filter(sh => sh && sh.storeId === st.id);
+    let fillSum = 0, fillCount = 0;
+    let critical = 0, dead = 0, stale = 0, oos = 0;
+
+    list.forEach(sh => {
+      const status = insShelfStatus(sh);
+      if (status.status === 'critical') critical++;
+      if (status.status === 'nodata') stale++;
+      if (insIsOos(status)) oos++;
+      dead += insNum(status.deadValue);
+      if (status.status !== 'nodata'){
+        fillSum += Math.min(100, Math.max(0, insNum(status.pct)));
+        fillCount++;
+      }
+    });
+
+    return {
+      storeId: st.id,
+      name: st.name || '',
+      fill: fillCount ? Math.round(fillSum / fillCount) : 0,
+      critical,
+      dead,
+      stale,
+      oos
+    };
+  });
+
+  rows.sort((a, b) => (b.fill - a.fill) || String(a.name).localeCompare(String(b.name), 'ru'));
+  return rows;
+}
+
+/* ═══════════════════════════════════════════════
+   3. СТАТИСТИКА ПРОДАВЦОВ
+   audits7 — аудиты за 7 дней; shelvesDone — разные полки
+   за 7 дней; oosShare — доля этих полок, где последний
+   аудит продавца показал хотя бы один нулевой остаток.
+   ═══════════════════════════════════════════════ */
+function sellerStats(){
+  const audits = insAudits();
+  const weekAgo = Date.now() - 7 * insDayMs();
+
+  return insSellers().map(sl => {
+    const storeRec = insStore(sl.storeId);
+    const mine = audits.filter(a => a && a.sellerId === sl.id);
+
+    let lastTs = 0;
+    mine.forEach(a => {
+      const ts = insNum(a.ts);
+      if (ts > lastTs) lastTs = ts;
+    });
+
+    const recent = mine.filter(a => insNum(a.ts) >= weekAgo);
+
+    /* последний аудит продавца по каждой полке за окно */
+    const latestByShelf = new Map();
+    recent.forEach(a => {
+      if (a.shelfId == null) return;
+      const prev = latestByShelf.get(a.shelfId);
+      if (!prev || insNum(a.ts) >= insNum(prev.ts)) latestByShelf.set(a.shelfId, a);
+    });
+
+    let oos = 0;
+    latestByShelf.forEach(a => {
+      const stock = insStockOf(a);
+      const hasZero = Object.keys(stock).some(id => insNum(stock[id]) === 0);
+      if (hasZero) oos++;
+    });
+
+    const shelvesDone = latestByShelf.size;
+    return {
+      seller: sl,
+      storeName: storeRec ? storeRec.name : '',
+      audits7: recent.length,
+      lastTs,
+      shelvesDone,
+      oosShare: shelvesDone ? oos / shelvesDone : 0
+    };
+  });
+}
+
+/* ═══════════════════════════════════════════════
+   4. ДНЕВНОЙ РАСХОД ПО СЕТИ
+   Положительные дельты остатков между соседними аудитами
+   каждой полки; дельта относится ко дню более позднего аудита.
+   Возвращает ровно days элементов [{ts, qty}] по возрастанию.
+   ═══════════════════════════════════════════════ */
+function dailyConsumption(days){
+  const n = insInt(days, 30, 0, 3660);
+  if (!n) return [];
+
+  const today = insStartOfDay(Date.now());
+  const first = insAddDays(today, -(n - 1));
+  const buckets = new Map();
+
+  insShelves().forEach(sh => {
+    if (!sh) return;
+    const list = insShelfAudits(sh.id);
+    for (let i = 1; i < list.length; i++){
+      const later = list[i];
+      const dayTs = insStartOfDay(later.ts);
+      if (dayTs < first || dayTs > today) continue;
+
+      const prev = insStockOf(list[i - 1]);
+      const cur = insStockOf(later);
+      let qty = 0;
+      Object.keys(cur).forEach(id => {
+        const delta = insNum(prev[id]) - insNum(cur[id]);
+        if (delta > 0) qty += delta;
+      });
+      if (qty) buckets.set(dayTs, (buckets.get(dayTs) || 0) + qty);
+    }
+  });
+
+  const out = [];
+  for (let i = n - 1; i >= 0; i--){
+    const ts = insAddDays(today, -i);
+    out.push({ ts, qty: buckets.get(ts) || 0 });
+  }
+  return out;
+}
+
+/* ═══════════════════════════════════════════════
+   5. ТРЕНД SKU: 14 дней против предыдущих 14
+   ═══════════════════════════════════════════════ */
+function skuTrend(skuId){
+  const item = insSku(skuId);
+  const now = insNetworkConsumption(skuId, 14);
+  const all = insNetworkConsumption(skuId, 28);
+  const prev = Math.max(0, all - now);
+  const delta = now - prev;
+
+  return {
+    sku: item,
+    now,
+    prev,
+    delta,
+    pct: prev > 0 ? delta / prev * 100 : 0
+  };
+}
+
+/* ═══════════════════════════════════════════════
+   6. ДАННЫЕ ДЛЯ ОТЧЁТА ВЛАДЕЛЬЦА
+   overstock — позиции с DOS > 60, топ-10 по деньгам.
+   ═══════════════════════════════════════════════ */
+function reportData(){
+  const overstock = [];
+
+  insShelves().forEach(sh => {
+    if (!sh) return;
+    const audit = insLastAudit(sh.id);
+    if (!audit) return;
+
+    const stock = insStockOf(audit);
+    const items = Array.isArray(sh.items) ? sh.items : [];
+    items.forEach(it => {
+      if (!it || it.skuId == null) return;
+      const qty = insNum(stock[it.skuId]);
+      if (qty <= 0) return;
+
+      const daily = insStoreSkuConsumption(sh.storeId, it.skuId, 30) / 30;
+      const dos = daily > 0 ? qty / daily : 999;
+      if (dos <= 60) return;
+
+      const skuRec = insSku(it.skuId);
+      const price = skuRec ? insNum(skuRec.price) : 0;
+      overstock.push({
+        storeId: sh.storeId,
+        shelfId: sh.id,
+        zone: sh.zone,
+        sku: skuRec,
+        stock: qty,
+        value: qty * price
+      });
+    });
+  });
+
+  overstock.sort((a, b) => b.value - a.value);
+
+  const topRequests = insRequests()
+    .filter(r => r && typeof r === 'object')
+    .slice()
+    .sort((a, b) => {
+      const likeA = Array.isArray(a.likes) ? a.likes.length : 0;
+      const likeB = Array.isArray(b.likes) ? b.likes.length : 0;
+      return (likeB - likeA) || (insNum(b.ts) - insNum(a.ts));
+    })
+    .slice(0, 8);
+
+  return {
+    kpis: networkKpis(),
+    shortages: insShortages().slice(0, 10),
+    overstock: overstock.slice(0, 10),
+    transfers: insTransfers().slice(0, 8),
+    topRequests
+  };
+}
+
+/* ═══════════════════════════════════════════════
+   7. ТРЕНД МАГАЗИНА: расход 14 дней минус предыдущие 14
+   ═══════════════════════════════════════════════ */
+function storeTrend(storeId){
+  let now = 0, all = 0;
+  insSkus().forEach(s => {
+    if (!s) return;
+    now += insStoreSkuConsumption(storeId, s.id, 14);
+    all += insStoreSkuConsumption(storeId, s.id, 28);
+  });
+  return now - Math.max(0, all - now);
+}
+
+/* ═══════════════════════════════════════════════
+   ВЛАДЕЛЕЦ СЕТИ — ЭКРАНЫ
+   Использует глобальные DB, аналитику и утилиты из index.html.
+   ═══════════════════════════════════════════════ */
+
+/* ── РОУТИНГ ── */
+function viewOwner(parts){
+  parts = parts || [];
+  const seg = parts[1] || 'overview';
+  let active = 'overview';
+  let body;
+
+  if (seg === 'matrix'){
+    active = 'matrix';
+    body = ownerMatrix();
+  } else if (seg === 'analytics'){
+    active = 'analytics';
+    body = ownerAnalytics();
+  } else if (seg === 'sellers'){
+    active = 'sellers';
+    body = ownerSellers();
+  } else if (seg === 'report'){
+    active = 'report';
+    body = ownerReport();
+  } else if (seg === 'store'){
+    if (parts[3] === 'shelf'){
+      body = ownerShelf(parts[2], parts[4]);
+    } else if (parts[3] && shelf(parts[3])){
+      /* запасной формат: #/owner/store/{storeId}/{shelfId} */
+      body = ownerShelf(parts[2], parts[3]);
+    } else {
+      body = ownerStore(parts[2]);
+    }
+  } else {
+    body = ownerOverview();
+  }
+
+  app.innerHTML = ownerShell(active, body);
+  ownerBind();
+}
+
+function ownerShell(active, body){
+  const tabs = [
+    ['overview', 'Обзор'],
+    ['matrix', 'Матрица'],
+    ['analytics', 'Аналитика'],
+    ['sellers', 'Продавцы'],
+    ['report', 'Отчёт']
+  ];
+  const tabHtml = tabs.map(([id, label]) =>
+    `<button data-tab="${id}" class="${active === id ? 'on' : ''}">${label}</button>`
+  ).join('');
+
+  return `
+    <div class="topbar">
+      <div class="logo">🛒 Полка <em>сеть</em></div>
+      <div class="spacer"></div>
+      <span class="tiny muted">Владелец</span>
+      <button class="btn sm ghost" id="ownerLogout">Выйти</button>
+    </div>
+    <div class="wrap">
+      <div class="tabs">${tabHtml}</div>
+      ${body}
+    </div>`;
+}
+
+function ownerBind(){
+  const logoutBtn = document.getElementById('ownerLogout');
+  if (logoutBtn) logoutBtn.addEventListener('click', logout);
+
+  app.querySelectorAll('[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => go('#/owner/' + btn.dataset.tab));
+  });
+
+  /* карточки магазинов (у карточек полок есть ещё data-shelf) */
+  app.querySelectorAll('[data-store]').forEach(btn => {
+    if (btn.dataset.shelf) return;
+    btn.addEventListener('click', () => go('#/owner/store/' + btn.dataset.store));
+  });
+
+  /* карточки полок */
+  app.querySelectorAll('[data-shelf]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sh = shelf(btn.dataset.shelf);
+      const storeId = btn.dataset.store || (sh ? sh.storeId : '');
+      go('#/owner/store/' + storeId + '/shelf/' + btn.dataset.shelf);
+    });
+  });
+
+  /* возврат с полки к магазину */
+  app.querySelectorAll('[data-back-store]').forEach(btn => {
+    btn.addEventListener('click', () => go('#/owner/store/' + btn.dataset.backStore));
+  });
+
+  const printBtn = document.getElementById('ownerPrint');
+  if (printBtn) printBtn.addEventListener('click', () => window.print());
+
+  const jsonBtn = document.getElementById('ownerJson');
+  if (jsonBtn) jsonBtn.addEventListener('click', ownerDownloadJson);
+}
+
+/* ── МЕЛКИЕ ХЕЛПЕРЫ ── */
+function ownerKpi(label, value, sub, cls){
+  return `<div class="kpi ${cls || ''}">
+    <b>${esc(value)}</b>
+    <span>${esc(label)}</span>
+    ${sub ? `<i>${esc(sub)}</i>` : ''}
+  </div>`;
+}
+
+function ownerStatusLabel(s){
+  return {
+    ok: 'в норме',
+    low: 'мало',
+    critical: 'критично',
+    over: 'залежи',
+    nodata: 'нет данных'
+  }[s] || 'нет данных';
+}
+
+function ownerQty(v){
+  const n = Number(v);
+  if (!isFinite(n)) return '0';
+  const r = Math.round(n * 100) / 100;
+  return String(r).replace('.', ',');
+}
+
+function ownerClampPct(v){
+  const n = Math.round(Number(v));
+  if (!isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, n));
+}
+
+function ownerWhen(ts){
+  const d = new Date(Number(ts));
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('ru-RU', { day:'2-digit', month:'2-digit' }) + ' ' +
+    d.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
+}
+
+function ownerSectionHead(title, sub, right){
+  return `<div class="row" style="justify-content:space-between;align-items:flex-end;margin:16px 0 8px;gap:10px">
+    <div>
+      <div style="font-size:15px;font-weight:700">${esc(title)}</div>
+      ${sub ? `<div class="tiny muted">${esc(sub)}</div>` : ''}
+    </div>
+    ${right || ''}
+  </div>`;
+}
+
+function ownerMissing(title, href, label){
+  return `<div class="card" style="max-width:520px;margin:24px auto;text-align:center">
+    <div style="font-size:16px;font-weight:700;margin-bottom:6px">${esc(title)}</div>
+    <div class="small muted" style="margin-bottom:14px">Похоже, магазин или полка удалены из базы.</div>
+    <a class="btn" href="${esc(href)}">${esc(label)}</a>
+  </div>`;
+}
+
+function ownerItemStatus(stock, target, daily){
+  const s = Number(stock) || 0;
+  if (s <= 0) return 'critical';
+  if (daily > 0 && s / daily > 60) return 'over';
+  const ratio = target > 0 ? s / target : 0;
+  if (ratio < 0.3) return 'critical';
+  if (ratio < 0.7) return 'low';
+  return 'ok';
+}
+
+/* ═══════════════════════════════════════════════
+   ОБЗОР
+   ═══════════════════════════════════════════════ */
+function ownerOverview(){
+  const k = networkKpis() || {};
+  const fill = Number(k.fill) || 0;
+  const oos = Number(k.oos) || 0;
+  const critical = Number(k.critical) || 0;
+  const dead = Number(k.dead) || 0;
+  const requests = Number(k.requests) || 0;
+  const auditsToday = Number(k.auditsToday) || 0;
+
+  const cards = DB.stores.map(st => ownerStoreCard(st)).join('');
+  const attention = ownerAttentionShelves(5);
+
+  return `
+    <div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:10px;gap:12px">
+      <div>
+        <h1 style="font-size:21px">Обзор сети</h1>
+        <div class="small muted">Заполненность ${fill}% · аудитов сегодня ${auditsToday}</div>
+      </div>
+      <div class="tiny muted">${DB.stores.length} магазина · ${DB.shelves.length} полок</div>
+    </div>
+
+    <div class="grid-kpi">
+      ${ownerKpi('Нулевые остатки', oos, 'позиции без товара при спросе', 'bad')}
+      ${ownerKpi('Критичные полки', critical, 'нужно пополнить', 'warn')}
+      ${ownerKpi('Залежи на полках', fmtMoney(dead), 'избыточный запас', 'over')}
+      ${ownerKpi('Запросы за 7 дней', requests, 'от продавцов и покупателей', '')}
+    </div>
+
+    ${ownerSectionHead('Магазины', 'Нажмите на карточку, чтобы открыть карту полок')}
+    <div class="stores">${cards || '<div class="muted small">Магазинов пока нет</div>'}</div>
+
+    ${ownerSectionHead('Требует внимания', '5 самых проблемных полок сети')}
+    <div class="card" style="padding:6px 14px 10px">
+      ${ownerAttentionTable(attention)}
+    </div>`;
+}
+
+function ownerStoreCard(st){
+  const stats = storeStats(st.id);
+  const mini = stats.statuses.map(x =>
+    `<i class="${x.status}" title="${esc(ownerStatusLabel(x.status))}"></i>`
+  ).join('');
+
+  const health = {
+    good:  ['ok', 'хорошо'],
+    bad:   ['critical', 'проблемы'],
+    mixed: ['low', 'смешанно']
+  }[st.health] || ['nodata', 'нет данных'];
+
+  return `
+    <button class="store-card" data-store="${esc(st.id)}">
+      <div class="row" style="justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="min-width:0">
+          <div class="nm">${esc(st.name)}</div>
+          <div class="ad">${esc(st.address)}</div>
+        </div>
+        <span class="pill ${health[0]}">${health[1]}</span>
+      </div>
+      <div class="mini">${mini || '<i class="nodata"></i>'}</div>
+      <div class="wrapflex small" style="gap:14px">
+        <span>Заполнено <b>${stats.fill}%</b></span>
+        <span>Критичных <b style="color:${stats.critical ? 'var(--critical)' : 'var(--ok)'}">${stats.critical}</b></span>
+        <span>Залежи <b>${fmtMoney(stats.dead)}</b></span>
+      </div>
+      <div class="tiny muted">${stats.total} полок${stats.stale ? ' · без данных: ' + stats.stale : ''}</div>
+    </button>`;
+}
+
+function ownerAttentionShelves(limit){
+  const rank = { critical: 3, nodata: 2, over: 1 };
+  return DB.shelves.map(sh => ({
+    sh,
+    st: shelfStatus(sh),
+    store: store(sh.storeId)
+  }))
+    .filter(x => rank[x.st.status] && x.store)
+    .sort((a, b) =>
+      (rank[b.st.status] - rank[a.st.status]) ||
+      (b.st.deadValue - a.st.deadValue) ||
+      (a.st.pct - b.st.pct)
+    )
+    .slice(0, limit);
+}
+
+function ownerAttentionTable(list){
+  if (!list.length){
+    return '<div class="muted small" style="padding:12px 0">Проблемных полок нет — сеть в норме</div>';
+  }
+  const rows = list.map(x => {
+    const sh = x.sh;
+    const st = x.st;
+    const stObj = x.store;
+    return `<tr>
+      <td><a href="#/owner/store/${esc(sh.storeId)}/shelf/${esc(sh.id)}">${esc(sh.zone)} · секция ${sh.section}</a></td>
+      <td><a class="muted" href="#/owner/store/${esc(sh.storeId)}">${esc(stObj ? stObj.name : '')}</a></td>
+      <td><span class="pill ${st.status}">${esc(ownerStatusLabel(st.status))}</span></td>
+      <td>${st.status === 'nodata' ? '—' : Math.min(100, st.pct) + '%'}</td>
+      <td>${st.deadValue ? fmtMoney(st.deadValue) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  return `<table class="t">
+    <thead><tr><th>Полка</th><th>Магазин</th><th>Статус</th><th>Заполнено</th><th>Залежи</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+/* ═══════════════════════════════════════════════
+   МАГАЗИН
+   ═══════════════════════════════════════════════ */
+function ownerStore(storeId){
+  const st = store(storeId);
+  if (!st) return ownerMissing('Магазин не найден', '#/owner/overview', 'К обзору сети');
+
+  const stats = storeStats(storeId);
+  const cards = stats.shelves.map((sh, i) =>
+    ownerShelfCard(sh, stats.statuses[i] || shelfStatus(sh))
+  ).join('');
+
+  return `
+    <div style="margin-bottom:8px"><a class="small" href="#/owner/overview">← Все магазины</a></div>
+    <div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:10px;gap:12px">
+      <div>
+        <h1 style="font-size:21px">${esc(st.name)}</h1>
+        <div class="small muted">${esc(st.address)} · ${stats.total} полок</div>
+      </div>
+      <div class="tiny muted">${stats.fill}% заполнено</div>
+    </div>
+
+    <div class="grid-kpi">
+      ${ownerKpi('Заполненность', stats.fill + '%', 'средняя по полкам с данными', stats.fill >= 70 ? 'ok' : stats.fill >= 40 ? 'warn' : 'bad')}
+      ${ownerKpi('Критичные полки', stats.critical, 'из ' + stats.total + ' полок', stats.critical ? 'bad' : 'ok')}
+      ${ownerKpi('Залежи', fmtMoney(stats.dead), 'избыточный запас на полках', stats.dead ? 'over' : '')}
+      ${ownerKpi('Без данных', stats.stale, 'аудит старше 36 часов', stats.stale ? 'warn' : 'ok')}
+    </div>
+
+    ${ownerSectionHead('Карта полок', 'Цвет — статус, клик — детали полки')}
+    <div class="grid">${cards || '<div class="muted small">Полок пока нет</div>'}</div>
+
+    ${ownerSectionHead('Отделы', 'Заполненность и критичные по зонам')}
+    <div class="card" style="padding:6px 14px 10px">${ownerZoneTable(stats)}</div>`;
+}
+
+function ownerShelfCard(sh, st){
+  const a = lastAudit(sh.id);
+  const pct = st.status === 'nodata' ? 0 : ownerClampPct(st.pct);
+  const auditText = a ? fmtAgo(a.ts) : '—';
+  const auditCls = st.status === 'nodata' ? 'nodata' : 'ok';
+
+  return `
+    <button class="shelf ${st.status}" data-shelf="${esc(sh.id)}" data-store="${esc(sh.storeId)}"
+            title="${esc(sh.zone)} · секция ${sh.section} · ${esc(ownerStatusLabel(st.status))}">
+      ${st.deadValue ? `<span class="money">💸 ${fmtMoney(st.deadValue)}</span>` : ''}
+      <div class="st" style="padding-right:${st.deadValue ? '64px' : '0'}">
+        <span class="dot"></span>
+        <span>${esc(sh.zone)}</span>
+      </div>
+      <div class="sec">Секция ${sh.section} · ${sh.items.length} поз.</div>
+      <div class="foot">
+        <span class="p">${esc(ownerStatusLabel(st.status))}</span>
+        <span>${st.status === 'nodata' ? '—' : Math.min(100, st.pct) + '%'}</span>
+      </div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="row" style="justify-content:space-between;gap:4px;margin-top:2px">
+        <span class="tiny muted">аудит</span>
+        <span class="pill ${auditCls}">${esc(auditText)}</span>
+      </div>
+    </button>`;
+}
+
+function ownerZoneTable(stats){
+  const map = new Map();
+
+  stats.shelves.forEach((sh, i) => {
+    const st = stats.statuses[i] || { status:'nodata', pct:0, deadValue:0 };
+    if (!map.has(sh.zone)){
+      map.set(sh.zone, { zone: sh.zone, count: 0, sum: 0, data: 0, critical: 0, dead: 0 });
+    }
+    const z = map.get(sh.zone);
+    z.count++;
+    if (st.status !== 'nodata'){
+      z.sum += Math.min(100, Number(st.pct) || 0);
+      z.data++;
+    }
+    if (st.status === 'critical') z.critical++;
+    z.dead += Number(st.deadValue) || 0;
+  });
+
+  const rows = [...map.values()].map(z => {
+    const fill = z.data ? Math.round(z.sum / z.data) : 0;
+    const cls = z.critical ? 'critical' : fill < 70 ? 'low' : 'ok';
+    return `<tr>
+      <td><b>${esc(z.zone)}</b><div class="tiny muted">${z.count} полки</div></td>
+      <td><div class="row" style="gap:8px">
+        <div class="dbar" style="flex:1;min-width:90px"><i class="${cls}" style="width:${ownerClampPct(fill)}%"></i></div>
+        <span class="tiny" style="min-width:30px;text-align:right">${z.data ? fill + '%' : '—'}</span>
+      </div></td>
+      <td>${z.critical ? `<span class="pill critical">${z.critical}</span>` : '<span class="muted">0</span>'}</td>
+      <td>${z.dead ? fmtMoney(z.dead) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  if (!rows) return '<div class="muted small" style="padding:10px 0">Отделов пока нет</div>';
+
+  return `<table class="t">
+    <thead><tr><th>Отдел</th><th>Заполненность</th><th>Критичные</th><th>Залежи</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+/* ═══════════════════════════════════════════════
+   ПОЛКА
+   ═══════════════════════════════════════════════ */
+function ownerShelf(storeId, shelfId){
+  const sh = shelf(shelfId);
+  if (!sh) return ownerMissing('Полка не найдена', '#/owner/overview', 'К обзору сети');
+
+  const st = store(sh.storeId) || store(storeId);
+  if (!st) return ownerMissing('Магазин не найден', '#/owner/overview', 'К обзору сети');
+
+  const status = shelfStatus(sh);
+  const a = lastAudit(sh.id);
+  const stk = stockOf(a);
+  const auditCls = (!a || status.status === 'nodata') ? 'bad' : 'ok';
+
+  const rows = sh.items.map(it => {
+    const s = sku(it.skuId);
+    const stock = Number(stk[it.skuId]) || 0;
+    const daily = storeSkuConsumption(sh.storeId, it.skuId, 30) / 30;
+    const value = stock * (s ? s.price : 0);
+    const ratio = it.target ? stock / it.target : 0;
+    const cls = ownerItemStatus(stock, it.target, daily);
+
+    return `<tr>
+      <td>${esc(s ? s.name : it.skuId)}<div class="tiny muted">план ${it.target} шт</div></td>
+      <td><b>${stock}</b> / ${it.target}</td>
+      <td><div class="dbar" style="min-width:80px"><i class="${cls}" style="width:${ownerClampPct(ratio * 100)}%"></i></div></td>
+      <td>${ownerQty(daily)}</td>
+      <td>${value ? fmtMoney(value) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div style="margin-bottom:8px"><a class="small" href="#/owner/store/${esc(st.id)}">← ${esc(st.name)}</a></div>
+    <div class="row" style="justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:12px">
+      <div>
+        <h1 style="font-size:21px">${esc(sh.zone)} · секция ${sh.section}</h1>
+        <div class="small muted">${esc(st.name)} · ${esc(st.address)}</div>
+      </div>
+      <span class="pill ${status.status}">${esc(ownerStatusLabel(status.status))}</span>
+    </div>
+
+    <div class="grid-kpi" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+      ${ownerKpi(
+        'Заполнено',
+        status.status === 'nodata' ? '—' : Math.min(100, status.pct) + '%',
+        status.empty ? status.empty + ' позиций с нулём' : 'все позиции в наличии',
+        status.status === 'critical' ? 'bad' : status.status === 'low' ? 'warn' : 'ok'
+      )}
+      ${ownerKpi('Залежи', fmtMoney(status.deadValue), 'избыточный запас', status.deadValue ? 'over' : '')}
+      ${ownerKpi('Аудит', a ? fmtAgo(a.ts) : 'нет', a ? ownerWhen(a.ts) : 'данных ещё нет', auditCls)}
+    </div>
+
+    <div class="visual-card">
+      <div class="visual-head">Визуализация полки — ${esc(sh.type === 'fridge' ? 'холодильник' : sh.type === 'showcase' ? 'витрина' : 'стеллаж')}</div>
+      ${shelfVisual(sh)}
+      <div class="visual-legend">
+        <span><i style="background:#22c55e"></i>ОК</span>
+        <span><i style="background:#eab308"></i>Мало</span>
+        <span><i style="background:#ef4444"></i>Критично</span>
+        <span><i style="background:#a855f7"></i>Залежь</span>
+        <span><i class="empty"></i>Пусто</span>
+      </div>
+    </div>
+
+    ${ownerSectionHead('Товары на полке', 'Остаток и план, расход за последние 30 дней')}
+    <div class="card" style="padding:6px 14px 10px">
+      <table class="t">
+        <thead><tr><th>Товар</th><th>Остаток / план</th><th>Заполнение</th><th>Расход/день</th><th>Значение</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="5" class="muted">На полке нет товаров</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    ${ownerSectionHead('История аудитов', 'Последние 8 проверок')}
+    <div class="card"><div class="history">${ownerShelfHistory(sh)}</div></div>
+
+    <div class="row" style="margin-top:14px">
+      <button class="btn" data-back-store="${esc(st.id)}">← Назад к магазину</button>
+    </div>`;
+}
+
+function ownerShelfHistory(sh){
+  const list = shelfAudits(sh.id).slice(-8).reverse();
+  if (!list.length){
+    return '<div class="muted small" style="padding:8px 0">Аудитов ещё не было</div>';
+  }
+
+  return list.map(a => {
+    const stk = stockOf(a);
+    const sum = Object.keys(stk).reduce((acc, key) => acc + (Number(stk[key]) || 0), 0);
+    const who = seller(a.sellerId);
+    const photo = a.photo
+      ? `<img src="${esc(a.photo)}" alt="фото полки" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex:none">`
+      : '<span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none"></span>';
+
+    return `<div class="hrow" style="align-items:center;gap:10px">
+      <div class="row" style="gap:8px;min-width:0">
+        ${photo}
+        <div style="min-width:0">
+          <div>${ownerWhen(a.ts)}</div>
+          <div class="tiny muted">${esc(who ? who.name : 'сотрудник')}</div>
+        </div>
+      </div>
+      <div style="text-align:right;white-space:nowrap">
+        <b>${sum}</b>
+        <div class="tiny muted">шт на полке</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════
+   МАТРИЦА
+   ═══════════════════════════════════════════════ */
+function ownerMatrix(){
+  const rows = matrixData(30) || [];
+  const stores = DB.stores;
+  let max = 0;
+
+  rows.forEach(r => {
+    stores.forEach(st => {
+      const v = Number(r.cells ? r.cells[st.id] : 0) || 0;
+      if (v > max) max = v;
+    });
+  });
+
+  const body = rows.map(r => {
+    const cells = stores.map(st => {
+      const v = Number(r.cells ? r.cells[st.id] : 0) || 0;
+      const alpha = v > 0 && max > 0 ? (0.08 + 0.55 * (v / max)) : 0;
+      const bg = v > 0 ? `rgba(59,130,246,${alpha.toFixed(2)})` : 'rgba(107,114,128,.16)';
+      const color = v > 0 ? '#dbeafe' : 'var(--muted)';
+      return `<td style="background:${bg};color:${color};font-weight:600"
+                  title="${esc(st.name)}: ${ownerQty(v)} в день">${ownerQty(v)}</td>`;
+    }).join('');
+
+    return `<tr>
+      <td>${esc(r.sku.name)}<div class="tiny muted">${fmtMoney(r.sku.price)}</div></td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  const trans = (transfers() || []).slice(0, 8);
+
+  return `
+    <h1 style="font-size:21px">Матрица сети</h1>
+    <div class="small muted" style="margin-bottom:10px">Расход в день по каждому товару · 30 дней</div>
+
+    <div class="card" style="padding:6px 14px 10px">
+      ${body ? `<table class="t">
+        <thead><tr><th>Товар</th>${stores.map(st => `<th>${esc(st.name)}</th>`).join('')}</tr></thead>
+        <tbody>${body}</tbody>
+      </table>` : '<div class="muted small">Нет данных для матрицы</div>'}
+    </div>
+
+    ${ownerMatrixLegend()}
+
+    ${ownerSectionHead('Рекомендации перевозок', 'Где избыток — туда, где дефицит')}
+    <div class="card"><div class="history">${ownerTransferRows(trans)}</div></div>`;
+}
+
+function ownerMatrixLegend(){
+  return `<div class="wrapflex small muted" style="gap:8px;margin-top:8px;align-items:center">
+    <span>Расход/день:</span>
+    <span style="display:inline-block;width:16px;height:10px;border-radius:2px;background:rgba(107,114,128,.25)"></span>
+    <span>0</span>
+    <span>→</span>
+    <span style="display:inline-block;width:90px;height:10px;border-radius:2px;background:linear-gradient(90deg,rgba(59,130,246,.08),rgba(59,130,246,.65))"></span>
+    <span>максимум</span>
+    <span class="tiny">чем ярче, тем больше продаж</span>
+  </div>`;
+}
+
+function ownerTransferRows(list){
+  if (!list || !list.length){
+    return '<div class="muted small" style="padding:8px 0">Перевозки не требуются — остатки сбалансированы</div>';
+  }
+
+  return list.map(t => {
+    const s = t.sku && typeof t.sku === 'object' ? t.sku : sku(t.skuId);
+    const from = store(t.from);
+    const to = store(t.to);
+
+    return `<div class="hrow" style="align-items:flex-start;gap:12px">
+      <div style="min-width:0">
+        <div>${esc(s ? s.name : 'Товар')}: ${esc(from ? from.name : '?')} → ${esc(to ? to.name : '?')}</div>
+      </div>
+      <div style="text-align:right;white-space:nowrap">
+        <b>${ownerQty(t.qty)} шт</b>
+        <div class="tiny muted">${fmtMoney(t.value)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════
+   АНАЛИТИКА
+   ═══════════════════════════════════════════════ */
+function ownerAnalytics(){
+  const days = (dailyConsumption(14) || []).slice().sort((a, b) => a.ts - b.ts);
+  const trend = demandTrend() || [];
+  const growing = trend.filter(r => r.delta > 0).slice(0, 5);
+  const falling = trend.filter(r => r.delta < 0)
+    .sort((a, b) => a.delta - b.delta)
+    .slice(0, 5);
+
+  return `
+    <h1 style="font-size:21px">Аналитика сети</h1>
+    <div class="small muted" style="margin-bottom:10px">Расход за 14 дней и изменение спроса</div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+        <div>
+          <b>Расход сети по дням</b>
+          <div class="tiny muted">сумма продаж по всем полкам, шт</div>
+        </div>
+        <div class="tiny muted">14 дней</div>
+      </div>
+      ${ownerSvgChart(days)}
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:12px">
+      ${ownerDemandBlock(growing, true)}
+      ${ownerDemandBlock(falling, false)}
+    </div>
+
+    ${ownerSectionHead('Топ запросов', 'По лайкам сотрудников')}
+    <div class="card"><div class="history">${ownerTopRequests(5)}</div></div>`;
+}
+
+function ownerSvgChart(points){
+  const data = (points || [])
+    .map(p => ({ ts: Number(p.ts), qty: Math.max(0, Number(p.qty) || 0) }))
+    .filter(p => isFinite(p.ts) && p.ts > 0)
+    .sort((a, b) => a.ts - b.ts);
+
+  if (data.length < 2){
+    return '<div class="muted small" style="height:180px;display:flex;align-items:center;justify-content:center">Недостаточно данных для графика</div>';
+  }
+
+  const W = 600, H = 180, L = 38, R = 12, T = 12, B = 30;
+  const n = data.length;
+  const max = Math.max(1, ...data.map(p => p.qty));
+  const spanX = W - L - R;
+  const spanY = H - T - B;
+
+  const x = i => n === 1 ? L : L + (i * spanX) / (n - 1);
+  const y = v => T + spanY * (1 - v / max);
+
+  const line = data.map((p, i) =>
+    `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.qty).toFixed(1)}`
+  ).join(' ');
+
+  const area = `M${x(0).toFixed(1)},${(H - B).toFixed(1)} ` +
+    data.map((p, i) => `L${x(i).toFixed(1)},${y(p.qty).toFixed(1)}`).join(' ') +
+    ` L${x(n - 1).toFixed(1)},${(H - B).toFixed(1)} Z`;
+
+  const grid = [0, 0.5, 1].map(f => {
+    const gy = y(max * f);
+    return `<line class="axis" x1="${L}" y1="${gy.toFixed(1)}" x2="${W - R}" y2="${gy.toFixed(1)}"></line>
+      <text x="4" y="${(gy + 3).toFixed(1)}">${ownerQty(max * f)}</text>`;
+  }).join('');
+
+  const labels = data.map((p, i) => {
+    if (i % 3 !== 0) return '';
+    return `<text x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${fmtDate(p.ts)}</text>`;
+  }).join('');
+
+  return `<svg class="chart" viewBox="0 0 600 180" preserveAspectRatio="xMidYMid meet"
+               style="height:auto;max-width:600px;display:block;margin:0 auto" role="img" aria-label="График расхода сети по дням">
+    ${grid}
+    <path class="area" d="${area}"></path>
+    <path class="line" d="${line}"></path>
+    <line class="axis" x1="${L}" y1="${T}" x2="${L}" y2="${H - B}"></line>
+    <line class="axis" x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}"></line>
+    ${labels}
+  </svg>`;
+}
+
+function ownerDemandBlock(rows, growing){
+  const title = growing ? 'Растёт спрос' : 'Падает спрос';
+  const color = growing ? 'var(--ok)' : 'var(--critical)';
+
+  const inner = rows.length
+    ? rows.map(r => {
+        const pct = r.prev > 0 ? Math.round(Math.abs(r.delta) / r.prev * 100) : null;
+        const pctText = pct === null ? 'новый товар' : (growing ? '+' : '−') + pct + '%';
+        return `<div class="hrow" style="align-items:center;gap:10px">
+          <div style="min-width:0">
+            <div>${esc(r.sku.name)}</div>
+            <div class="tiny muted">сейчас ${ownerQty(r.now)} · было ${ownerQty(r.prev)}</div>
+          </div>
+          <div style="text-align:right;white-space:nowrap;color:${color}">
+            <b>${growing ? '↑' : '↓'} ${ownerQty(Math.abs(r.delta))}</b>
+            <div class="tiny">${pctText}</div>
+          </div>
+        </div>`;
+      }).join('')
+    : '<div class="muted small" style="padding:8px 0">Нет данных об изменении спроса</div>';
+
+  return `<div class="card">
+    <div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:6px">
+      <b style="color:${color}">${title}</b>
+      <span class="tiny muted">14 дней к предыдущим 14</span>
+    </div>
+    <div class="history">${inner}</div>
+  </div>`;
+}
+
+function ownerTopRequestsList(limit){
+  return DB.requests.slice()
+    .sort((a, b) =>
+      ((b.likes || []).length - (a.likes || []).length) || (b.ts - a.ts)
+    )
+    .slice(0, limit);
+}
+
+function ownerTopRequests(limit){
+  return ownerRequestRows(ownerTopRequestsList(limit));
+}
+
+function ownerRequestRows(list){
+  if (!list || !list.length){
+    return '<div class="muted small" style="padding:8px 0">Запросов пока нет</div>';
+  }
+
+  return list.map(r => {
+    const text = r.text || r.request || 'Запрос';
+    const storeId = r.storeId || (r.store && r.store.id) || '';
+    const st = store(storeId);
+    const storeName = r.storeName || (st ? st.name : '');
+    const likes = Array.isArray(r.likes)
+      ? r.likes.length
+      : (Number(r.likes) || Number(r.count) || 0);
+    const ts = Number(r.ts) || Date.now();
+
+    return `<div class="hrow" style="align-items:flex-start;gap:12px">
+      <div style="min-width:0">
+        <div>${esc(text)}</div>
+        <div class="tiny muted">${esc(storeName)} · ${fmtAgo(ts)}</div>
+      </div>
+      <span class="pill ok" style="white-space:nowrap">👍 ${likes}</span>
+    </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════
+   ПРОДАВЦЫ
+   ═══════════════════════════════════════════════ */
+function ownerSellers(){
+  const list = (sellerStats() || []).slice()
+    .sort((a, b) => (Number(b.audits7) || 0) - (Number(a.audits7) || 0));
+
+  const totalAudits = list.reduce((acc, x) => acc + (Number(x.audits7) || 0), 0);
+  const cards = list.map(x => ownerSellerCard(x)).join('');
+
+  return `
+    <div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:10px;gap:12px">
+      <div>
+        <h1 style="font-size:21px">Продавцы</h1>
+        <div class="small muted">Аудиты и качество проверок за 7 дней</div>
+      </div>
+      <div class="tiny muted">${list.length} сотрудников · ${totalAudits} аудитов</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px">
+      ${cards || '<div class="muted small">Сотрудников пока нет</div>'}
+    </div>`;
+}
+
+function ownerSellerCard(x){
+  const s = x.seller && typeof x.seller === 'object' ? x.seller : seller(x.seller);
+  if (!s){
+    return `<div class="card"><div class="muted small">Сотрудник не найден</div></div>`;
+  }
+
+  const st = store(s.storeId);
+  const storeName = x.storeName || (st ? st.name : '');
+  const audits = Number(x.audits7) || 0;
+  const shelvesDone = Number(x.shelvesDone) || 0;
+  const share = Number(x.oosShare) || 0;
+  const sharePct = share > 0 && share <= 1
+    ? Math.round(share * 1000) / 10
+    : Math.round(share * 10) / 10;
+  const shareColor = sharePct > 25 ? 'var(--critical)'
+    : sharePct > 10 ? 'var(--low)'
+    : 'var(--ok)';
+  const last = x.lastTs ? fmtAgo(x.lastTs) : '—';
+
+  return `<div class="card">
+    <div class="row" style="justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
+      <div style="min-width:0">
+        <div style="font-size:14px;font-weight:700">${esc(s.name)}</div>
+        <div class="tiny muted">${esc(storeName)}</div>
+      </div>
+      <span class="pill ${audits ? 'ok' : 'nodata'}">${audits ? 'активен' : 'нет аудитов'}</span>
+    </div>
+    <div class="history">
+      <div class="hrow"><span class="muted">Аудитов за 7 дней</span><b>${audits}</b></div>
+      <div class="hrow"><span class="muted">Последний аудит</span><b>${esc(last)}</b></div>
+      <div class="hrow"><span class="muted">Проверено полок</span><b>${shelvesDone}</b></div>
+      <div class="hrow"><span class="muted">OOS-доля</span><b style="color:${shareColor}">${ownerQty(sharePct)}%</b></div>
+    </div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   ОТЧЁТ
+   ═══════════════════════════════════════════════ */
+function ownerReport(){
+  const data = (typeof reportData === 'function' ? reportData() : null) || {};
+  const k = data.kpis || (typeof networkKpis === 'function' ? networkKpis() : null) || {};
+
+  const short = Array.isArray(data.shortages)
+    ? data.shortages
+    : (typeof shortages === 'function' ? shortages() : []);
+
+  const over = Array.isArray(data.overstock)
+    ? data.overstock
+    : ownerOverstockFallback();
+
+  const trans = Array.isArray(data.transfers)
+    ? data.transfers
+    : (typeof transfers === 'function' ? transfers() : []);
+
+  const reqs = Array.isArray(data.topRequests)
+    ? data.topRequests
+    : ownerTopRequestsList(5);
+
+  const fill = Number(k.fill) || 0;
+  const oos = Number(k.oos) || 0;
+  const critical = Number(k.critical) || 0;
+  const dead = Number(k.dead) || 0;
+  const requests = Number(k.requests) || 0;
+  const auditsToday = Number(k.auditsToday) || 0;
+
+  const today = new Date().toLocaleDateString('ru-RU', {
+    day:'2-digit', month:'long', year:'numeric'
+  });
+
+  return `
+    <div class="row" style="justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:12px;flex-wrap:wrap">
+      <div>
+        <h1 style="font-size:21px">Отчёт по сети</h1>
+        <div class="small muted">${esc(today)} · ${DB.stores.length} магазина · ${DB.shelves.length} полок</div>
+      </div>
+      <div class="wrapflex">
+        <button class="btn primary" id="ownerPrint">🖨 Печать отчёта</button>
+        <button class="btn" id="ownerJson">⬇ Скачать JSON</button>
+      </div>
+    </div>
+
+    <div class="grid-kpi">
+      ${ownerKpi('Заполненность сети', fill + '%', 'средняя по полкам с данными', fill >= 70 ? 'ok' : fill >= 40 ? 'warn' : 'bad')}
+      ${ownerKpi('Нулевые остатки', oos, 'позиции без товара', 'bad')}
+      ${ownerKpi('Критичные полки', critical, 'требуют пополнения', 'warn')}
+      ${ownerKpi('Залежи', fmtMoney(dead), 'избыточный запас', 'over')}
+    </div>
+    <div class="tiny muted" style="margin-top:6px">Аудитов сегодня: ${auditsToday} · запросов за 7 дней: ${requests}</div>
+
+    ${ownerSectionHead('Чего не хватает', 'Позиции с нулевым остатком при спросе · ' + short.length)}
+    <div class="card" style="padding:6px 14px 10px">${ownerShortageTable(short)}</div>
+
+    ${ownerSectionHead('Залежи', 'Избыточный запас · ' + over.length)}
+    <div class="card" style="padding:6px 14px 10px">${ownerOverstockTable(over)}</div>
+
+    ${ownerSectionHead('Перевозки', 'Рекомендации по перемещению · ' + trans.length)}
+    <div class="card"><div class="history">${ownerTransferRows(trans.slice(0, 8))}</div></div>
+
+    ${ownerSectionHead('Топ запросов', 'По лайкам сотрудников')}
+    <div class="card"><div class="history">${ownerRequestRows(reqs.slice(0, 5))}</div></div>`;
+}
+
+function ownerShortageTable(list){
+  if (!list || !list.length){
+    return '<div class="muted small" style="padding:8px 0">Дефицита нет — все позиции в наличии</div>';
+  }
+
+  const rows = list.slice(0, 15).map(x => {
+    const skuObj = x.sku && typeof x.sku === 'object'
+      ? x.sku
+      : (x.skuId ? sku(x.skuId) : null);
+    const storeId = x.storeId || (x.store ? x.store.id : '');
+    const st = store(storeId);
+    const storeName = x.storeName || (st ? st.name : '');
+    const name = skuObj ? skuObj.name : (x.skuName || 'Товар');
+
+    return `<tr>
+      <td>${esc(storeName)}</td>
+      <td>${esc(name)}</td>
+      <td>${ownerQty(x.daily)}</td>
+      <td>${ownerQty(x.stock)} / ${ownerQty(x.target)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<table class="t">
+    <thead><tr><th>Магазин</th><th>Товар</th><th>Расход/день</th><th>Остаток / план</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function ownerOverstockTable(list){
+  if (!list || !list.length){
+    return '<div class="muted small" style="padding:8px 0">Залежей нет — запас сбалансирован</div>';
+  }
+
+  const rows = list.slice(0, 15).map(x => {
+    const skuObj = x.sku && typeof x.sku === 'object'
+      ? x.sku
+      : (x.skuId ? sku(x.skuId) : null);
+    const storeId = x.storeId || (x.store ? x.store.id : '');
+    const st = store(storeId);
+    const storeName = x.storeName || (st ? st.name : '');
+    const name = skuObj ? skuObj.name : (x.skuName || x.name || 'Товар');
+    const qty = Number(x.stock != null ? x.stock : (x.qty != null ? x.qty : x.quantity)) || 0;
+    const value = Number(x.value != null ? x.value : x.deadValue) || 0;
+
+    return `<tr>
+      <td>${esc(storeName)}</td>
+      <td>${esc(name)}</td>
+      <td>${ownerQty(qty)}</td>
+      <td>${value ? fmtMoney(value) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  return `<table class="t">
+    <thead><tr><th>Магазин</th><th>Товар</th><th>Остаток</th><th>Залежи</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function ownerOverstockFallback(){
+  const out = [];
+
+  DB.shelves.forEach(sh => {
+    const a = lastAudit(sh.id);
+    if (!a) return;
+    const stk = stockOf(a);
+
+    sh.items.forEach(it => {
+      const stock = Number(stk[it.skuId]) || 0;
+      if (!stock) return;
+      const daily = storeSkuConsumption(sh.storeId, it.skuId, 30) / 30;
+      if (daily > 0 && stock / daily > 60){
+        const s = sku(it.skuId);
+        out.push({
+          storeId: sh.storeId,
+          sku: s,
+          qty: stock,
+          value: stock * (s ? s.price : 0)
+        });
+      }
+    });
+  });
+
+  out.sort((a, b) => b.value - a.value);
+  return out.slice(0, 15);
+}
+
+function ownerDownloadJson(){
+  const data = (typeof reportData === 'function' ? reportData() : null) || {};
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'polka-otchet-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('JSON-отчёт скачан');
+}
+
+/* ==== MODULES END ==== */
+
+window.addEventListener('hashchange', route);
+route();
+</script>
+</body>
+</html>
